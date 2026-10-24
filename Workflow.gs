@@ -31,7 +31,7 @@ function afBuildAnalystContext_(tradeType,verifiedQuote){
    fLast.records.forEach(function(r){fibBook.push(Object.assign({},r,{tf:tf,adapter:'afFiboReplay_'}));});}
  });
  return {asOf:asOf,symbol:'XAUUSD',sourceId:'Eightcap-MT5-Live',style:tradeType,executionTF:style.execution,contextTF:style.context,
-  quote:{bid:quote.bid,ask:quote.ask,spread:quote.spread_price,timestamp:quote.timestamp,priceBasis:'Bid candles; current quote includes Ask'},
+  quote:{bid:quote.bid,ask:quote.ask,spread:quote.spread_price,timestamp:quote.timestamp,market_status:quote.market_status,weekend_test_mode:quote.weekend_test_mode,priceBasis:'Bid candles; current quote includes Ask'},
   frames:frames,zones:zoneBook,fibos:fibBook,
   coverage:{canonicalSD:'computed',normalFibo:'computed',OB_QML_Flip:'unavailable',NeckDivergence:'unavailable',pineRuntimeParity:false}};
 }
@@ -151,7 +151,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   post.news.code=!newsAfter.ok?'AF_NEWS_UNAVAILABLE':!newsAfter.canTrade?'AF_NEWS_WINDOW':null;
   post.news.state=!newsAfter.ok?'UNAVAILABLE':!newsAfter.canTrade?'REJECTED':'PASSED';
   if(!newsAfter.ok||!newsAfter.canTrade)return finish(newsAfter.ok?'SKIP_NEWS':'DATA_NEWS_UNAVAILABLE','POST_NEWS',newsAfter.ok?'AF_NEWS_WINDOW':'AF_NEWS_UNAVAILABLE',null,true);
-  var latest=Object.assign({},context,{quote:{bid:latestQuote.bid,ask:latestQuote.ask,spread:latestQuote.spread_price,timestamp:latestQuote.timestamp}});
+  var latest=Object.assign({},context,{quote:{bid:latestQuote.bid,ask:latestQuote.ask,spread:latestQuote.spread_price,timestamp:latestQuote.timestamp,market_status:latestQuote.market_status,weekend_test_mode:latestQuote.weekend_test_mode}});
   audit.stage='POST_SNAPSHOT';var postNow=Date.now();post.snapshot.checkedAt=new Date(postNow).toISOString();post.snapshot.ageMs=postNow-context.asOf;
   var postGate=afPlannerContextGate_(latest,postNow);post.snapshot.code=postGate;post.snapshot.state=postGate?'REJECTED':'PASSED';
   if(postGate==='AF_QUOTE_INVALID_OR_STALE'){post.quote.state='REJECTED';post.quote.code=postGate;}

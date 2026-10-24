@@ -88,14 +88,14 @@ function afPlannerPostChecks_(){return {startedAt:null,attemptedCandidateId:null
  candidate:{state:'NOT_RUN',code:null,checkedAt:null,rebuilt:null}};}
 // Numeric-only quote whitelist: malformed fields are unknown, never stringified payloads.
 function afPlannerPostQuote_(q){var out={};['bid','ask','spread_price','timestamp'].forEach(function(k){
- out[k==='spread_price'?'spread':k]=q&&afPlannerNum_(q[k])?q[k]:null;});return out;}
+ out[k==='spread_price'?'spread':k]=q&&afPlannerNum_(q[k])?q[k]:null;});if(q){out.market_status=q.market_status;out.weekend_test_mode=q.weekend_test_mode;}return out;}
 function afPlannerSnapshot_(ctx,qc){
  var frames={};Object.keys(AF_PLANNER_TF).forEach(function(tf){var f=ctx.frames&&ctx.frames[tf];if(!f)return;
   frames[tf]=afPlannerPick_(f,['tfMs','lastClosedUtc','atr','ema20','ema50']);
   frames[tf].liquidityCount=Array.isArray(f.liquidity)?f.liquidity.length:0;});
  return {symbol:afPlannerPick_(ctx,['symbol']).symbol,asOf:afPlannerPick_(ctx,['asOf']).asOf,
   executionTF:afPlannerPick_(ctx,['executionTF']).executionTF,contextTF:afPlannerPick_(ctx,['contextTF']).contextTF,
-  quote:ctx.quote?afPlannerPick_(ctx.quote,['bid','ask','spread','timestamp']):null,
+  quote:ctx.quote?afPlannerPick_(ctx.quote,['bid','ask','spread','timestamp','market_status','weekend_test_mode']):null,
   frames:frames,modules:afPlannerModules_(ctx),qc:afPlannerPick_(qc,['mode','threshold']),
   evidenceCounts:afPlannerEvidenceCounts_(ctx),provenance:afPlannerProvenance_(ctx)};
 }
@@ -103,11 +103,12 @@ function afPlannerContextGate_(ctx,now){
  if(!ctx||ctx.symbol!=='XAUUSD'||!AF_PLANNER_TF[ctx.executionTF]||!AF_PLANNER_TF[ctx.contextTF])return 'AF_CONTEXT_INVALID';
  if(!afPlannerNum_(ctx.asOf)||now<ctx.asOf||now-ctx.asOf>AF_PLANNER_POLICY.maxSnapshotMs)return 'AF_SNAPSHOT_STALE';
  var q=ctx.quote;
+ var isClosed=q&&(q.market_status==='closed'||q.weekend_test_mode===true||q.is_market_open===false);
  if(!q||![q.bid,q.ask,q.spread,q.timestamp].every(afPlannerNum_)||q.bid<=0||q.ask<q.bid||q.spread<0||
-  Math.abs(q.ask-q.bid-q.spread)>1e-6||now-q.timestamp*1000>120000||q.timestamp*1000-now>2000)return 'AF_QUOTE_INVALID_OR_STALE';
+  Math.abs(q.ask-q.bid-q.spread)>1e-6||(!isClosed&&(now-q.timestamp*1000>120000||q.timestamp*1000-now>2000)))return 'AF_QUOTE_INVALID_OR_STALE';
  if(!ctx.frames||!ctx.frames[ctx.executionTF]||!ctx.frames[ctx.contextTF]||!Array.isArray(ctx.zones)||!Array.isArray(ctx.fibos))return 'AF_CONTEXT_INVALID';
  var invalid=null;Object.keys(ctx.frames).forEach(function(tf){var f=ctx.frames[tf],ms=AF_PLANNER_TF[tf],t=Date.parse(f.lastClosedUtc);
-  if(!ms||f.tfMs!==ms||!afPlannerNum_(f.atr)||f.atr<=0||!afPlannerNum_(f.ema20)||!afPlannerNum_(f.ema50)||!Number.isFinite(t)||t>ctx.asOf||ctx.asOf-t>ms+120000)invalid='AF_FRAME_INVALID_OR_STALE';
+  if(!ms||f.tfMs!==ms||!afPlannerNum_(f.atr)||f.atr<=0||!afPlannerNum_(f.ema20)||!afPlannerNum_(f.ema50)||!Number.isFinite(t)||t>ctx.asOf||(!isClosed&&ctx.asOf-t>ms+120000))invalid='AF_FRAME_INVALID_OR_STALE';
  });return invalid;
 }
 function afPlannerRound_(x,up){return Number(((up?Math.ceil(x/0.01-1e-8):Math.floor(x/0.01+1e-8))*0.01).toFixed(2));}

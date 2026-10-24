@@ -70,16 +70,18 @@ function afMt5Bars_(input,point,tfSeconds,nowTs,allowAscending=false) {
 
 function afMt5Quote_() {
   const now=Date.now()/1000;
-  if(AF_MT5_RUN.quote && now-AF_MT5_RUN.quote.fetchedAt<15 && now-AF_MT5_RUN.quote.timestamp<=120)return AF_MT5_RUN.quote;
+  if(AF_MT5_RUN.quote && now-AF_MT5_RUN.quote.fetchedAt<15)return AF_MT5_RUN.quote;
   const q=afMt5Json_('/api/quote'),t=Number(q.timestamp),bid=Number(q.bid),ask=Number(q.ask),sp=Number(q.spread_price),point=Number(q.point);
-  if(q.symbol!=='XAUUSD'||q.source_id!=='Eightcap-MT5-Live'||q.quote_usable!==true||q.connection_status!=='connected'||
-     q.feed_status!=='fresh'||q.market_status!=='open'||!Number.isSafeInteger(t)||afMt5Utc_(q.date)!==t||afMt5Utc_(q.datetime_utc)!==t||
-     now-t < -2 || now-t>120 || ![bid,ask,point,sp].every(Number.isFinite)||!(bid>0&&ask>=bid&&point===0.01)||sp<0||
+  const isClosed=q.market_status==='closed'||q.is_market_open===false;
+  if(q.symbol!=='XAUUSD'||q.source_id!=='Eightcap-MT5-Live'||q.connection_status!=='connected'||
+     (!isClosed && (q.quote_usable!==true||q.feed_status!=='fresh'||now-t<-2||now-t>120))||
+     !Number.isSafeInteger(t)||afMt5Utc_(q.date)!==t||afMt5Utc_(q.datetime_utc)!==t||
+     ![bid,ask,point,sp].every(Number.isFinite)||!(bid>0&&ask>=bid&&point===0.01)||sp<0||
      !Number.isSafeInteger(q.spread_points)||q.spread_points<0||q.price_basis!=='Bid'||
      afMt5Utc_(q.datetime_th)-25200!==t||Math.abs(ask-bid-sp)>1e-6||Math.abs(sp-q.spread_points*point)>1e-6||
      !Number.isSafeInteger(q.timestamp_msc)||Math.floor(q.timestamp_msc/1000)!==t)
     throw Error('MT5_QUOTE_NOT_FRESH_OR_VALID');
-  AF_MT5_RUN.quote={...q,fetchedAt:now};return AF_MT5_RUN.quote;
+  AF_MT5_RUN.quote={...q,fetchedAt:now,weekend_test_mode:isClosed};return AF_MT5_RUN.quote;
 }
 
 function afReadMarket_(tf,limit){
