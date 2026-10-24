@@ -28,6 +28,7 @@ var AF_UNIFIED_CONFIG = {
   minRoomATR: 0.75,
   minPlanR: 1.0,
   minNetR: 1.50,
+  maxCostRisk: 0.20,
   maxTargetCapR: 4.50,        // ขยายเพดานให้รองรับเป้า Fibo 161.8% - 261.8%
 
   // Stale Quote Tolerance (ระหว่างรอ AI ประมวลผล)
@@ -314,11 +315,12 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
 
   const roomOK = grossReward >= chartAtr * AF_UNIFIED_CONFIG.minRoomATR &&
     (hardObstaclePrice === null || Math.abs(hardObstaclePrice - geom.entry) >= chartAtr * AF_UNIFIED_CONFIG.minRoomATR);
-  const rrOK = grossRR >= AF_UNIFIED_CONFIG.minPlanR && netRR >= AF_UNIFIED_CONFIG.minNetR;
+  const costRiskOK = cost <= geom.risk * AF_UNIFIED_CONFIG.maxCostRisk;
+  const rrOK = grossRR >= AF_UNIFIED_CONFIG.minPlanR && netRR >= AF_UNIFIED_CONFIG.minNetR && costRiskOK;
 
   return {
     valid: Boolean(fibMatch.matched && roomOK && rrOK),
-    reason: !fibMatch.matched ? 'NO_FIBO_SYNERGY_MATCH' : (!roomOK ? 'HARD_OBSTACLE_TOO_CLOSE' : (!rrOK ? 'NET_RR_BELOW_MIN' : 'OK')),
+    reason: !fibMatch.matched ? 'NO_FIBO_SYNERGY_MATCH' : (!roomOK ? 'HARD_OBSTACLE_TOO_CLOSE' : (!costRiskOK ? 'AF_COST_TOO_HIGH' : (!rrOK ? 'NET_RR_BELOW_MIN' : 'OK'))),
     side: side === 1 ? 'BUY' : 'SELL',
     setupMode: fibMatch.mode,
     zoneId: coreZone.id,
