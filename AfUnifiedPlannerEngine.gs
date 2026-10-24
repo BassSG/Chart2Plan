@@ -30,6 +30,7 @@ var AF_UNIFIED_CONFIG = {
   minNetR: 1.50,
   maxCostRisk: 0.20,
   maxTargetCapR: 4.50,        // ขยายเพดานให้รองรับเป้า Fibo 161.8% - 261.8%
+  maxEntryDistanceATR: 6.0,   // hard limit for a pending entry too far from current quote
 
   // Stale Quote Tolerance (ระหว่างรอ AI ประมวลผล)
   maxPriceDriftATR: 0.35      // ถ้าราคาขยับไม่เกิน 0.35 ATR และยังไม่ชน Entry/SL ถือว่า Snapshot ยังใช้ได้
@@ -226,14 +227,21 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
 
   const isPendingLimit = side === 1 ? (geom.entry < ask) : (geom.entry > bid);
   if (!isPendingLimit) {
-    return { valid: false, reason: 'ENTRY_NOT_LIMIT_SIDE_OF_SPOT', meta, geom };
+    return { valid: false, reason: 'ENTRY_NOT_LIMIT_SIDE_OF_SPOT', meta, geom, fiboSynergy: fibMatch };
   }
   if (!meta.directLimitOK) {
-    return { valid: false, reason: 'DIRECT_LIMIT_SCORE_OR_ROLE_INSUFFICIENT', meta, geom };
+    return { valid: false, reason: 'DIRECT_LIMIT_SCORE_OR_ROLE_INSUFFICIENT', meta, geom, fiboSynergy: fibMatch };
   }
   if (!geom.anchorOK || !geom.stopOK) {
-    return { valid: false, reason: !geom.anchorOK ? 'NO_PROTECTIVE_ANCHOR' : 'STOP_GEOMETRY_OUT_OF_BOUNDS', meta, geom };
+    return { valid: false, reason: !geom.anchorOK ? 'NO_PROTECTIVE_ANCHOR' : 'STOP_GEOMETRY_OUT_OF_BOUNDS', meta, geom, fiboSynergy: fibMatch };
   }
+  const entryReference=side===1?ask:bid;
+  const entryDistance=side*(entryReference-geom.entry);
+  const distanceLimit=Number(market.maxEntryDistanceATR||AF_UNIFIED_CONFIG.maxEntryDistanceATR);
+  const maxEntryDistance=chartAtr*distanceLimit;
+  geom.entryDistance={referencePrice:entryReference,distance:entryDistance,distanceATR:Number((entryDistance/chartAtr).toFixed(3)),maxDistanceATR:distanceLimit};
+  if(!Number.isFinite(entryDistance)||entryDistance<0||entryDistance>maxEntryDistance)
+    return {valid:false,reason:'AF_ENTRY_TOO_FAR_FROM_MARKET',meta,geom,fiboSynergy:fibMatch};
 
   // ตรวจหาสิ่งกีดขวางฝั่งตรงข้าม:
   // แยกเป็น (1) Hard Blocking Obstacle (Actionable Defend Zone score >= 62 และ tests <= 1)
@@ -466,7 +474,7 @@ function afUnifiedCandidateList_(ctx,market,chartAtr){
     // A lone zone without a compatible Fibo book is not a trade Candidate;
     // source-pair availability and a per-side gate code remain in the audit snapshot.
     if(!plan.fiboSynergy||plan.fiboSynergy.matched!==true)return;
-    var zoneId=plan.zoneId||z.id||null,fiboId=plan.fiboSynergy&&plan.fiboSynergy.fiboId||null,mode=plan.setupMode||'NONE';
+    var zoneId=plan.zoneId||z.id||null,fiboId=plan.fiboSynergy&&plan.fiboSynergy.fiboId||null,mode=plan.setupMode||plan.fiboSynergy&&plan.fiboSynergy.mode||'NONE';
     var id='UNI:'+mode+':'+String(zoneId||'UNKNOWN')+':'+(Number(z.side)===1?'BUY':'SELL');
     var geom=plan.geom||{},targets=plan.targets||{};
     out.push({id:id,stableKey:id,side:Number(z.side),sideStr:Number(z.side)===1?'BUY':'SELL',entry:geom.entry==null?null:geom.entry,

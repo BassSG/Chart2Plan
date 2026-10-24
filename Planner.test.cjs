@@ -131,6 +131,11 @@ test('duplicate keys reject every ambiguous source and collapse deterministicall
  x.zones.reverse();assert.equal(JSON.stringify(build(c,x)),JSON.stringify(a));
  const y=fixture();y.fibos.push(copy(y.fibos[0]));assert.ok(buy(c,y).gateCodes.includes('AF_DUPLICATE_SOURCE_KEY'));
 });
+test('far-away Pending Limit plans fail closed with explicit distance gate',()=>{
+ const c=runtime(),x=fixture();const z=x.zones.find(v=>v.side===-1);z.lo=4478;z.hi=4480;z.score=100;z.atr=1;
+ const far=build(c,x,null).filter(v=>v.zoneId===z.id);assert.ok(far.length>0);assert.ok(far.every(v=>!v.eligible&&v.gateCodes[0]==='AF_ENTRY_TOO_FAR_FROM_MARKET'));
+});
+
 test('only referenced unknown modules block; method3 needs unavailable Neck',()=>{
  const c=runtime(),x=fixture();assert.ok(buy(c,x).eligible);x.coverage.canonicalSD='unknown';assert.equal(buy(c,x).gateCodes[0],'AF_MODULE_UNAVAILABLE');
  x.coverage.canonicalSD='computed';x.fibos[0].method=3;assert.equal(buy(c,x).gateCodes[0],'AF_MODULE_UNAVAILABLE');

@@ -30,3 +30,18 @@ assert.equal(cs[0].meta.role,'MAJOR');
 assert.equal(cs[0].setupMode,'TREND_CONTINUATION');
 assert.ok(cs[0].netR>=1.5);
 console.log('PASS: real All Indy adapter and EBW Fibo target-array schema produce an eligible unified BUY candidate');
+
+// Regression for the reported market mismatch: a far-away SELL Limit at ~4,479
+// is not accepted against a current reference quote near ~3,996.
+const farZone={...zone,id:'far-sell-15m',side:-1,lo:4478,hi:4480,score:88};
+const counterFibo={id:'counter-buy-15m',tfMs:900000,tf:'15m',side:1,symbol:'XAUUSD',sourceVersion:'EBW-Fibo-1.10.19',zero:4400,span:(4480-4400)/1.618,root:4380,born:1000,knownAt:2000,sourceClose:2000,broken:true,invalidated:false,historyComplete:true,anchors:{a:{p:4380},b:{p:4480},c:{p:4400}},targets:[{ratio:1.618,price:4480,pending:true,hitAt:null},{ratio:2,price:4498.77,pending:true,hitAt:null}]};
+const farCtx={zones:[farZone],fibos:[counterFibo],frames:{'15m':{tfMs:900000,liquidity:[]}},quote:{bid:3996,ask:3996.24},executionTF:'5m'};
+const farMarket={mintick:.01,totalCost:.26,bid:3996,ask:3996.24,chartSec:300};
+const farPrepared=c.afUnifiedPrepareContext_(farCtx,farMarket);
+console.log('Far adapted:',JSON.stringify({zones:farPrepared.zones.map(z=>({id:z.id,side:z.side,lo:z.lo,hi:z.hi,family:z.family})),fibos:farPrepared.fibos.map(f=>({side:f.side,broken:f.broken,zero:f.zero,target1618:f.target1618,next:f.nextPendingTarget}))}));
+console.log('Direct mode:',JSON.stringify(c.matchFiboSynergy_(farPrepared.defendZones[0],-1,farPrepared.fibos,4.5)));
+console.log('Direct plan:',JSON.stringify(c.buildUnifiedCandidatePlan_(farPrepared.defendZones[0],farPrepared.zones,farPrepared.fibos,farMarket,4.5)));
+const farPlan=c.afUnifiedCandidateList_(farCtx,farMarket,4.5);
+console.log('Far SELL check:',JSON.stringify(farPlan.map(x=>({id:x.id,eligible:x.eligible,reason:x.gateCodes,entry:x.entry,entryDistance:x.geom&&x.geom.entryDistance})),null,2));
+assert.ok(farPlan.some(x=>x.gateCodes.includes('AF_ENTRY_TOO_FAR_FROM_MARKET')));
+console.log('PASS: far SELL Limit at 4,479 vs quote 3,996 rejected by distance hard gate');

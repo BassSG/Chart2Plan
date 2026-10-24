@@ -4,7 +4,7 @@
  * No bar-index comparisons across TF. All recognition/source times are UTC ms. */
 var AF_PLANNER_POLICY = Object.freeze({version:'AF-PLANNER-1.1-EXPERIMENTAL',tick:0.01,minNetR:1.5,
  minRiskATR:0.75,maxRiskATR:2.5,bufferZoneATR:0.18,anchorSearchATR:1.5,sweepBandATR:0.6,sweepBufferATR:0.25,maxWidthZoneATR:2.5,
- maxCostRisk:0.2,extraCost:0.02,maxSnapshotMs:120000,maxQuoteMs:120000});
+ maxCostRisk:0.2,extraCost:0.02,maxSnapshotMs:120000,maxQuoteMs:120000,maxEntryDistanceATR:6.0});
 var AF_PLANNER_TF = {'1m':60000,'5m':300000,'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000};
 function afPlannerNum_(x){return typeof x==='number'&&Number.isFinite(x);}
 function afPlannerClean_(v){
@@ -204,6 +204,9 @@ function afPlannerCandidate_(ctx,z,f,qc,now){
  var risk=s*(c.entry-c.stop),cost=ctx.quote.spread+AF_PLANNER_POLICY.extraCost;
  c.evidence.risk=risk;c.evidence.cost=cost;
  if(risk<.01||risk<exec.atr*AF_PLANNER_POLICY.minRiskATR-1e-8||risk>exec.atr*AF_PLANNER_POLICY.maxRiskATR+1e-8)return fail('AF_STOP_ATR_RANGE');
+ var entryReference=s===1?ctx.quote.ask:ctx.quote.bid,entryDistance=s*(entryReference-c.entry),entryDistanceATR=entryDistance/exec.atr;
+ c.evidence.entryDistance={referencePrice:entryReference,distance:entryDistance,distanceATR:entryDistanceATR,maxDistanceATR:AF_PLANNER_POLICY.maxEntryDistanceATR};
+ if(!afPlannerNum_(entryDistanceATR)||entryDistanceATR<0||entryDistanceATR>AF_PLANNER_POLICY.maxEntryDistanceATR)return fail('AF_ENTRY_TOO_FAR_FROM_MARKET');
  if(cost>risk*AF_PLANNER_POLICY.maxCostRisk+1e-8)return fail('AF_COST_TOO_HIGH');
  if(!Array.isArray(f.targets)||!Array.isArray(f.hitRatios))return fail('AF_FIBO_TARGETS_INVALID');
  var ratios=[1.618,2,2.618,3.5,4.236,5.472],seen={},bad=f.hitRatios.some(function(r){return !afPlannerNum_(r)||ratios.indexOf(r)<0;});
