@@ -14,7 +14,7 @@ function registerUser(){afAssertSandbox_();return {success:false,message:'ระ
 function loginUser(){afAssertSandbox_();return {success:false,message:'ระบบทดสอบส่วนตัวไม่ต้องสมัครหรือใส่รหัสผ่าน'};}
 function changePassword(){afAssertSandbox_();return {success:false,message:'ระบบทดสอบส่วนตัวไม่ต้องสมัครหรือใส่รหัสผ่าน'};}
 function afRequireUser_(username){if(username!==afSoloIdentity_().username)throw Error('AF_OWNER_CONTEXT_REQUIRED');}
-function getCurrentPrices(){afAssertSandbox_();try{AF_MT5_RUN.quote=null;var q=afMt5Quote_();return {XAUUSD:Number(q.bid)};}catch(_){return {};}}
+function getCurrentPrices(){afAssertSandbox_();try{AF_PROVIDER_RUN.quote=null;var q=afMt5Quote_();return {XAUUSD:Number(q.bid)};}catch(_){return {};}}
 function manageTriggers(action,user){
  afRequireUser_(user);if(action==='deleteAll')return afCancelPaperMany_(user,null);
  if(action!=='getAll')return {success:false,message:'ไม่รองรับคำสั่งนี้'};

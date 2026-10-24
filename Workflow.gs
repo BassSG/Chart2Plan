@@ -11,7 +11,7 @@ function afPlannerQuote_(){
  }
 }
 function afBuildAnalystContext_(tradeType,verifiedQuote){
- AF_MT5_RUN.responses={};AF_MT5_RUN.quote=null;AF_MT5_RUN.metadata=null;
+ AF_PROVIDER_RUN.responses={};AF_PROVIDER_RUN.quote=null;AF_PROVIDER_RUN.metadata=null;
  var style={scalping:{execution:'5m',context:'1h'},daytrade:{execution:'15m',context:'4h'},swingtrade:{execution:'1h',context:'4h'}}[tradeType];
  if(!style)throw Error('AF_TRADE_STYLE_UNSUPPORTED');
  var quote=verifiedQuote||afPlannerQuote_(),pack=afLoadPack_(),asOf=Date.now(),frames={},zoneBook=[],fibBook=[];
@@ -121,7 +121,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   audit.stage='NEWS_PRE';var news=afNewsCheck_('XAUUSD',true);
   audit.newsKnownAt=Date.now();audit.newsSnapshot=afWorkflowNewsEvidence_(news);
   if(!news.ok||!news.canTrade)return finish(news.ok?'SKIP_NEWS':'DATA_NEWS_UNAVAILABLE','NEWS_PRE',news.ok?'AF_NEWS_WINDOW':'AF_NEWS_UNAVAILABLE',null,true);
-  audit.stage='QUOTE_PRE';AF_MT5_RUN.quote=null;var preQuote=afPlannerQuote_();
+  audit.stage='QUOTE_PRE';AF_PROVIDER_RUN.quote=null;var preQuote=afPlannerQuote_();
   audit.stage='DATA_PRE';var context=afBuildAnalystContext_(tradeType,preQuote);
   audit.snapshot=afPlannerSnapshot_(context,quality);
   audit.postChecks.quote.original=afPlannerClean_(audit.snapshot.quote);
@@ -146,14 +146,14 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   // Persist only known, whitelisted billing values before any post-response guard.
   knownCost=ai&&afPlannerNum_(ai.cost)&&ai.cost>=0?ai.cost:null;knownUsage=afWorkflowUsage_(ai&&ai.usage);
   var d=ai&&ai.decision;
-  var admitted=afAdmitAiPlan_(d,context,qc,candidates);
+  var admitted=afAdmitAiPlan_(d,context,qc,allCandidates);
   var post=audit.postChecks;post.startedAt=new Date().toISOString();
   // Only a schema-valid, admitted known ID is an attempted selection; never echo AI input.
   post.attemptedCandidateId=admitted.accepted?admitted.candidate.id:null;
   post.snapshot.ageMs=Date.now()-context.asOf;
   // Always refresh quote/news after a model response, even NO_TRADE/schema reject.
   audit.stage='POST_QUOTE';post.quote.state='CHECKING';post.quote.checkedAt=new Date().toISOString();
-  AF_MT5_RUN.quote=null;var latestQuote=afPlannerQuote_();
+  AF_PROVIDER_RUN.quote=null;var latestQuote=afPlannerQuote_();
   post.quote.latest=afPlannerPostQuote_(latestQuote);post.quote.state='AVAILABLE';
   post.quote.ageMs=afPlannerNum_(post.quote.latest.timestamp)?Date.now()-post.quote.latest.timestamp*1000:null;
   // Observed movement is not a passed gate until the original checks below execute.
@@ -200,7 +200,8 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
     post.movement.code='AF_TARGET_ALREADY_EXHAUSTED';post.movement.state='REJECTED';
     return finish('NO_TRADE','POST_QUOTE','AF_TARGET_ALREADY_EXHAUSTED',null,true);
   }
-  var driftLimit=context.frames[context.executionTF].atr*(AF_UNIFIED_CONFIG.maxPriceDriftATR||0.35);
+  var driftPolicy=(typeof AF_UNIFIED_CONFIG!=='undefined'&&AF_UNIFIED_CONFIG.maxPriceDriftATR)||0.35;
+  var driftLimit=context.frames[context.executionTF].atr*driftPolicy;
   post.movement.bidDelta=Math.abs(curBid-context.quote.bid);post.movement.limit=driftLimit;
   post.movement.code=post.movement.bidDelta>driftLimit?'AF_QUOTE_MOVED':null;
   post.movement.state=post.movement.code?'REJECTED':'PASSED';
@@ -266,7 +267,7 @@ function afResearchDiagnostics(tradeType,symbol,qc){
   audit.stage='NEWS_PRE';var news=afNewsCheck_('XAUUSD',true);
   audit.newsKnownAt=Date.now();audit.newsSnapshot=afWorkflowNewsEvidence_(news);
   if(!news.ok||!news.canTrade)throw Error(news.ok?'AF_NEWS_WINDOW':'AF_NEWS_UNAVAILABLE');
-  audit.stage='QUOTE_PRE';AF_MT5_RUN.quote=null;var preQuote=afPlannerQuote_();
+  audit.stage='QUOTE_PRE';AF_PROVIDER_RUN.quote=null;var preQuote=afPlannerQuote_();
   audit.stage='DATA_PRE';var ctx=afBuildAnalystContext_(style,preQuote);audit.snapshot=afPlannerSnapshot_(ctx,quality);
   var gate=afPlannerContextGate_(ctx,Date.now());if(gate)throw Error(gate);
   audit.stage='PLANNER';audit.candidates=afPlannerBuild_(ctx,quality,Date.now());

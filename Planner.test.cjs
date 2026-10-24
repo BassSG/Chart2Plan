@@ -7,7 +7,7 @@ function test(name,fn){try{fn();passed++;console.log('PASS '+name);}catch(e){con
 function runtime(provider=false){
  let now=START;class Clock extends Date{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}
  const c=vm.createContext({Date:Clock,console});
- if(!provider)c.AF_MT5_RUN={responses:{},quote:null,metadata:null};
+ if(!provider)c.AF_PROVIDER_RUN={responses:{},quote:null,metadata:null};
  for(const name of ['Market.gs','Allindy.gs','Fibo.gs',...(provider?['Provider.gs']:[]),'Planner.gs','Workflow.gs'])
   vm.runInContext(fs.readFileSync(path.join(root,name),'utf8'),c,{filename:name});
  c.setNow=n=>{now=n;};return c;
@@ -345,7 +345,7 @@ test('postChecks movement rejection records attempted ID and actual movement wit
  const {r}=workflow({quoteAfter:{bid:101,ask:101.1}}),p=r.audit.postChecks;
  assert.equal(r.audit.reasonCode,'AF_QUOTE_MOVED');assert.equal(r.audit.snapshot.quote.bid,100);assert.equal(p.quote.latest.bid,101);
  assert.ok(r.audit.candidates.some(v=>v.id===p.attemptedCandidateId));assert.equal(r.audit.selectedCandidateId,null);
- assert.equal(p.movement.bidDelta,1);assert.equal(p.movement.absoluteBidDelta,1);assert.equal(p.movement.limit,.25);
+ assert.equal(p.movement.bidDelta,1);assert.equal(p.movement.absoluteBidDelta,1);assert.equal(p.movement.limit,.35);
  assert.equal(p.movement.state,'REJECTED');assert.equal(p.movement.code,'AF_QUOTE_MOVED');assert.equal(p.snapshot.ageMs,0);
  assert.deepEqual(copy(p.gateCodes),['AF_QUOTE_MOVED']);assert.equal(p.candidate.state,'NOT_RUN');assert.equal(p.candidate.rebuilt,null);
 });

@@ -15,7 +15,7 @@ function afAnalyzeMarket(){
  afAssertSandbox_();
  var lock=LockService.getScriptLock();if(!lock.tryLock(1000))return {mode:'TEST',decision:'WAIT',reason:'ANALYSIS_BUSY'};
  try{
-  AF_MT5_RUN.responses={};AF_MT5_RUN.quote=null;AF_MT5_RUN.metadata=null;
+  AF_PROVIDER_RUN.responses={};AF_PROVIDER_RUN.quote=null;AF_PROVIDER_RUN.metadata=null;
   var startedAt=Date.now(),pack=afLoadPack_(),run=afResearchReplay_(pack),quote=afMt5Quote_(),news=afNewsCheck_('XAUUSD',true),asOf=Date.now(),last=pack['5m'][pack['5m'].length-1],ai=run.allindy[run.allindy.length-1],fi=afLatestKnowable(run.fibo.snapshots,last.openTime),result={decision:'NO_TRADE',reason:'NO_CONFIRMED_STRICT_SUBSET_SIGNAL'},props=PropertiesService.getScriptProperties(),stateKey='AF_PAPER_XAUUSD_5M',old=props.getProperty(stateKey),state=old?JSON.parse(old):null;
   if(state&&['PENDING','ACTIVE'].indexOf(state.status)>=0){
    if(state.status==='PENDING'&&news.ok&&news.blocked){state.status='CANCELLED';state.reason='NEWS_WINDOW';}

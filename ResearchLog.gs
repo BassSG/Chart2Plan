@@ -202,7 +202,7 @@ function afPaperRefreshLocked_(user){
   if(pending.length){
     try{
       // Closed-bar replay does not require an open-market quote: never invent a missing outcome.
-      AF_MT5_RUN.responses={};AF_MT5_RUN.quote=null;AF_MT5_RUN.metadata=null;
+      AF_PROVIDER_RUN.responses={};AF_PROVIDER_RUN.quote=null;AF_PROVIDER_RUN.metadata=null;
       var market=afReadMarket_('1m',3000);
       if(market.symbol!=='XAUUSD'||market.sourceId!=='Eightcap-MT5-Live')throw Error('AF_PAPER_FEED_INVALID');
       bars=market.bars;if(!bars.length)throw Error('AF_PAPER_FEED_EMPTY');

@@ -1,16 +1,16 @@
 // Source: production Mt5MarketData.js. GET-only subset, no EA/queue/lifecycle writes.
-var AF_MT5_DEFAULT_URL = typeof AF_MT5_DEFAULT_URL !== 'undefined' ? AF_MT5_DEFAULT_URL : "https://anything-mrna-work-voted.trycloudflare.com";
-var AF_MT5_RUN = typeof AF_MT5_RUN !== 'undefined' ? AF_MT5_RUN : {responses:{},quote:null,metadata:null};
+var AF_PROVIDER_DEFAULT_URL = typeof AF_PROVIDER_DEFAULT_URL !== 'undefined' ? AF_PROVIDER_DEFAULT_URL : "https://anything-mrna-work-voted.trycloudflare.com";
+var AF_PROVIDER_RUN = typeof AF_PROVIDER_RUN !== 'undefined' ? AF_PROVIDER_RUN : {responses:{},quote:null,metadata:null};
 
 function afMt5Config_() {
-  const p=PropertiesService.getScriptProperties(),base=String(p.getProperty('AF_MT5_API_BASE_URL')||AF_MT5_DEFAULT_URL).replace(/\/+$/,'');
+  const p=PropertiesService.getScriptProperties(),base=String(p.getProperty('AF_MT5_API_BASE_URL')||AF_PROVIDER_DEFAULT_URL).replace(/\/+$/,'');
   // Never send credentials or trading data over plain HTTP; no key fallback.
   if(!/^https:\/\/[A-Za-z0-9.-]+(?::443)?$/.test(base))throw Error('MT5_HTTPS_URL_REQUIRED');
   return {base,key:String(p.getProperty('AF_MT5_API_KEY')||'')};
 }
 
 function afMt5Json_(path,cacheKey) {
-  if(cacheKey && Object.prototype.hasOwnProperty.call(AF_MT5_RUN.responses,cacheKey))return AF_MT5_RUN.responses[cacheKey];
+  if(cacheKey && Object.prototype.hasOwnProperty.call(AF_PROVIDER_RUN.responses,cacheKey))return AF_PROVIDER_RUN.responses[cacheKey];
   const cfg=afMt5Config_(),headers={Accept:'application/json'};
   // Request the API response, not ngrok's free-plan browser notice.
   if(/^https:\/\/[^/]+\.ngrok-free\.(?:dev|app)(?::443)?$/i.test(cfg.base))headers['ngrok-skip-browser-warning']='1';
@@ -25,7 +25,7 @@ function afMt5Json_(path,cacheKey) {
     const code=/^MT5_HTTP_\d+$/.test(String(e.message||''))?e.message:'MT5_FETCH_OR_JSON_FAILED';
     throw Error(code);
   }
-  if(cacheKey)AF_MT5_RUN.responses[cacheKey]=result;
+  if(cacheKey)AF_PROVIDER_RUN.responses[cacheKey]=result;
   return result;
 }
 
@@ -37,7 +37,7 @@ function afMt5Utc_(value) {
 }
 
 function afMt5Metadata_() {
-  if(AF_MT5_RUN.metadata)return AF_MT5_RUN.metadata;
+  if(AF_PROVIDER_RUN.metadata)return AF_PROVIDER_RUN.metadata;
   const m=afMt5Json_('/api/metadata','metadata');
   if(m.symbol!=='XAUUSD'||m.source_id!=='Eightcap-MT5-Live'||m.timezone_verified!==true||
      m.session_verified!==true||!Number.isFinite(Number(m.point))||Number(m.point)!==0.01||Number(m.digits)!==2||!/^Bid\b/.test(String(m.price_basis||'')))
@@ -47,7 +47,7 @@ function afMt5Metadata_() {
   if(!sessions.some(s=>s.day==='Friday'&&s.broker_time==='01:00 - 23:58')||
      !sessions.some(s=>s.day==='Tuesday - Thursday'&&s.broker_time==='01:00 - 23:59')||
      !/US Daylight Saving Time/.test(String(m.dst_rules||'')))throw Error('MT5_SESSION_POLICY_CHANGED');
-  AF_MT5_RUN.metadata=m;return m;
+  AF_PROVIDER_RUN.metadata=m;return m;
 }
 
 function afMt5Bars_(input,point,tfSeconds,nowTs,allowAscending=false) {
@@ -70,7 +70,7 @@ function afMt5Bars_(input,point,tfSeconds,nowTs,allowAscending=false) {
 
 function afMt5Quote_() {
   const now=Date.now()/1000;
-  if(AF_MT5_RUN.quote && now-AF_MT5_RUN.quote.fetchedAt<15)return AF_MT5_RUN.quote;
+  if(AF_PROVIDER_RUN.quote && now-AF_PROVIDER_RUN.quote.fetchedAt<15)return AF_PROVIDER_RUN.quote;
   const q=afMt5Json_('/api/quote'),t=Number(q.timestamp),bid=Number(q.bid),ask=Number(q.ask),sp=Number(q.spread_price),point=Number(q.point);
   const isClosed=q.market_status==='closed'||q.is_market_open===false||q.feed_status==='stale';
   if(q.symbol!=='XAUUSD'||q.source_id!=='Eightcap-MT5-Live'||q.connection_status!=='connected'||
@@ -81,7 +81,7 @@ function afMt5Quote_() {
      afMt5Utc_(q.datetime_th)-25200!==t||Math.abs(ask-bid-sp)>1e-6||Math.abs(sp-q.spread_points*point)>1e-6||
      !Number.isSafeInteger(q.timestamp_msc)||Math.floor(q.timestamp_msc/1000)!==t)
     throw Error('MT5_QUOTE_NOT_FRESH_OR_VALID');
-  AF_MT5_RUN.quote={...q,fetchedAt:now,weekend_test_mode:isClosed};return AF_MT5_RUN.quote;
+  AF_PROVIDER_RUN.quote={...q,fetchedAt:now,weekend_test_mode:isClosed};return AF_PROVIDER_RUN.quote;
 }
 
 function afReadMarket_(tf,limit){

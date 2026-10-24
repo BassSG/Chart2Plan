@@ -27,7 +27,7 @@ function env(){
     getSheetByName(n){return this.sheets[n]||null;}insertSheet(n){return this.sheets[n]=new Sheet(n,this);}
   }
   class Clock extends Date{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}
-  const c={console,Date:Clock,AF_MT5_RUN:{responses:{old:true},quote:{old:true},metadata:{old:true}},
+  const c={console,Date:Clock,AF_PROVIDER_RUN:{responses:{old:true},quote:{old:true},metadata:{old:true}},
     afAssertSandbox_(){},afRequireUser_(u){if(u!=='owner')throw Error('DENIED');},
     PropertiesService:{getScriptProperties:()=>({getProperty:k=>{
       assert.equal(k,'AF_SHEET_ID','only workspace ID may be read');return props[k]||null;
@@ -189,7 +189,7 @@ test('manual refresh fresh provider replay persisted exactly once with evidence'
   const e=env();e.record();e.time(T+2*M);
   e.c.bars=[bar(T,102,104,99,102),bar(T+M,106,111,105,108)];
   const result=e.c.afRefreshPaper('owner');assert.equal(result.counts.TP,1);assert.equal(result.counts.Entry,1);
-  assert.equal(result.realBroker,false);assert.equal(e.fetches,1);assert.deepEqual(plain(e.c.AF_MT5_RUN.responses),{});
+  assert.equal(result.realBroker,false);assert.equal(e.fetches,1);assert.deepEqual(plain(e.c.AF_PROVIDER_RUN.responses),{});
   const p=e.c.afPaperLatest_(e.book,e.c.afResearchHash_('owner'))[0];
   assert.equal(e.c.afResearchReadBlob_(e.book,p.replayEvidence.ref,p.replayEvidence.hash).bars.length,2);
   const n=e.book.getSheetByName('PaperPlans').rows.length;
