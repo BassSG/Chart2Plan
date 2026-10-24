@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <base target="_top">
   <title>Chart2Plan | Allindy + Fibo</title>
   <meta name="description" content="AI Trading Decision Support & Evidence-Based Execution Engine">
   <meta name="theme-color" content="#14b8a6">
@@ -14,84 +15,33 @@
   <link rel="icon" type="image/png" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <link rel="manifest" href="manifest.json">
-  <meta http-equiv="refresh" content="0; url=https://script.google.com/macros/s/AKfycbxShlJXB7L1ctoDWG0TV9exyI3SQUA66cypHoeYUmID3_NUzVoREz39yLi1OnWnksNs9g/exec">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
-      background: radial-gradient(circle at 50% 20%, #15273b, #0b121b 80%);
-      font-family: 'Inter', 'Noto Sans Thai', -apple-system, sans-serif;
-      color: #e2e8f0;
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b121b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    .app-icon {
-      width: 100px;
-      height: 100px;
-      border-radius: 22px;
-      box-shadow: 0 12px 36px rgba(20, 184, 166, 0.35);
-      margin-bottom: 20px;
-      border: 2px solid rgba(20, 184, 166, 0.4);
-      animation: pulse 2s infinite ease-in-out;
-    }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.04); }
-    }
-    h1 { font-size: 1.45rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
-    p.subtitle { font-size: 0.88rem; color: #94a3b8; max-width: 320px; line-height: 1.5; margin-bottom: 24px; }
-    .launch-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      background: linear-gradient(135deg, #14b8a6, #0d9488);
-      color: #ffffff;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 1rem;
-      padding: 14px 32px;
-      border-radius: 14px;
-      box-shadow: 0 8px 24px rgba(20, 184, 166, 0.4);
-      transition: all 0.2s ease;
-    }
-    .launch-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 30px rgba(20, 184, 166, 0.55);
-    }
-    .tip-box {
-      font-size: 0.8rem;
-      color: #64748b;
-      margin-top: 24px;
-      background: rgba(30, 41, 59, 0.5);
-      border: 1px solid rgba(51, 65, 85, 0.5);
-      padding: 12px 18px;
-      border-radius: 12px;
-      max-width: 320px;
-      line-height: 1.6;
+    iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
     }
   </style>
 </head>
 <body>
-  <img src="assets/icon-192.png" alt="Chart2Plan App Icon" class="app-icon">
-  <h1>Chart2Plan | Allindy + Fibo</h1>
-  <p class="subtitle">กำลังเปิดแอปพลิเคชัน AI Trading Workspace…</p>
-  <a href="https://script.google.com/macros/s/AKfycbxShlJXB7L1ctoDWG0TV9exyI3SQUA66cypHoeYUmID3_NUzVoREz39yLi1OnWnksNs9g/exec" class="launch-btn" id="launchBtn">
-    <i class="fas fa-arrow-up-right-from-square"></i> เปิดแอปพลิเคชัน
-  </a>
-  <div class="tip-box">
-    <i class="fas fa-mobile-screen-button"></i> <strong>สำหรับโทรศัพท์มือถือ:</strong> แตะเปิดแอป แล้วเลือก <em>"เพิ่มไปยังหน้าจอโฮม" (Add to Home Screen)</em> เพื่อใช้งานเป็น App เต็มจอ
-  </div>
-
+  <iframe src="https://script.google.com/macros/s/AKfycbxShlJXB7L1ctoDWG0TV9exyI3SQUA66cypHoeYUmID3_NUzVoREz39yLi1OnWnksNs9g/exec" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen></iframe>
   <script>
-    // Immediate clean navigation to the standalone Web App (bypassing cross-origin iframe restrictions)
-    window.location.replace("https://script.google.com/macros/s/AKfycbxShlJXB7L1ctoDWG0TV9exyI3SQUA66cypHoeYUmID3_NUzVoREz39yLi1OnWnksNs9g/exec");
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
   </script>
 </body>
 </html>
