@@ -56,10 +56,15 @@ function workflow(opts={}){
   return Object.assign({bid:100,ask:100.1,spread_price:.1,timestamp:START/1000},count.quote>1?opts.quoteAfter:{});};
  c.afMt5Json_=()=>({market_status:opts.rawStatus||'open',symbol:'XAUUSD',source_id:'Eightcap-MT5-Live',timestamp:START/1000});
  c.afBuildAnalystContext_=()=>{if(opts.dataError)throw Error(opts.dataError);return ctx;};
- c.afCallAnalyst_=()=>{count.ai++;if(opts.aiError)throw Error(opts.aiError);
+ c.afCallAnalyst_=(model,prompt)=>{count.ai++;if(opts.aiError)throw Error(opts.aiError);
   if(opts.delay)c.setNow(START+opts.delay);
-  return opts.aiResponse||{decision:opts.aiDecision||decision(build(c,ctx).find(v=>v.eligible&&(opts.sell?v.side==='SELL':v.side==='BUY')).id),
-   cost:.01,usage:{prompt_tokens:60,completion_tokens:40,total_tokens:100,secret:'DO_NOT_RETURN'}};};
+  if(opts.aiResponse)return opts.aiResponse;
+  var unifiedValid=[];
+  try{var at=prompt.lastIndexOf('{\"snapshot\":');if(at>=0){var body=JSON.parse(prompt.slice(at)),dc=body.deterministicCandidates||{};unifiedValid=(dc.buy||[]).concat(dc.sell||[]).filter(function(v){return v.valid===true;});}}catch(_){}
+  count.promptValidTrue=unifiedValid.length;
+  var selected=opts.legacySelection?null:unifiedValid.find(function(v){return opts.sell?v.side===-1||v.side==='SELL':v.side===1||v.side==='BUY';});
+  if(!selected)selected=build(c,ctx).find(function(v){return v.eligible&&(opts.sell?v.side==='SELL':v.side==='BUY');});
+  return {decision:opts.aiDecision||decision(selected&&selected.id),cost:.01,usage:{prompt_tokens:60,completion_tokens:40,total_tokens:100,secret:'DO_NOT_RETURN'}};};
  c.afStoreResponse_=(r)=>{count.store++;if(opts.storeError)throw Error('private provider url token');
   return opts.storeFail?Object.assign({},r,{success:false,status:'SAVE_FAILED_OR_PARTIAL',plan:null}):r;};
  const r=c.processAnalysisWithDetailedLog('scalping',opts.symbol||'XAU/USD','owner','same-model',opts.qc);
@@ -145,7 +150,9 @@ test('invalid numerics, TF ATR, source times, stale data and costs fail closed',
 });
 test('workflow accepts BUY/SELL using candidate prices, numeric side, audit and safe usage',()=>{
  for(const sell of [false,true]){const {r,count}=workflow({sell});assert.equal(r.status,'PAPER_SIGNAL_READY');assert.ok(r.success);
-  assert.equal(r.plan.side,sell?-1:1);assert.equal(count.ai,1);assert.equal(count.quote,2);assert.equal(count.news,2);assert.equal(count.release,1);
+  assert.equal(r.plan.side,sell?-1:1);assert.equal(count.ai,1);assert.ok(count.promptValidTrue>0,'AI prompt must contain valid === true candidates');
+  assert.ok(r.audit.candidates.filter(v=>String(v.id).startsWith('UNI:')).every(v=>v.valid===v.eligible),'Unified candidate valid alias matches eligibility');
+  assert.equal(count.quote,2);assert.equal(count.news,2);assert.equal(count.release,1);
   assert.equal(typeof r.qcResult.percentage,'number');assert.equal(typeof r.qcResult.threshold,'number');assert.equal(r.usage.secret,undefined);
   const c=r.audit.candidates.find(v=>v.id===r.audit.selectedCandidateId);assert.equal(r.plan.entry,c.entry);assert.equal(r.plan.stop,c.stop);assert.equal(r.plan.target,c.target);
  }
@@ -187,7 +194,7 @@ test('post-AI freshness, movement, entry touch, cost and RR gates',()=>{
  const x=fixture();Object.assign(x.zones[0],{lo:99.3,hi:100.3});Object.assign(x.zones[1],{lo:101.5,hi:102.5});
  const touched=workflow({ctx:x,quoteAfter:{bid:99.75,ask:99.8,spread_price:0.05}});r=touched.r;assert.equal(touched.count.ai,1);
  assert.equal(r.audit.stage,'POST_GATES');assert.equal(r.audit.reasonCode,'AF_LIMIT_ALREADY_MARKETABLE');
- r=workflow({quoteAfter:{ask:100.3,spread_price:.3}}).r;assert.equal(r.audit.reasonCode,'AF_COST_TOO_HIGH');assert.equal(r.audit.selectedCandidateId,null);
+ r=workflow({quoteAfter:{ask:100.5,spread_price:.5}}).r;assert.equal(r.audit.reasonCode,'AF_COST_TOO_HIGH');assert.equal(r.audit.selectedCandidateId,null);
  const y=fixture();y.quote.ask=100;y.quote.spread=0;y.frames['5m'].liquidity=[{side:-1,price:99.75,knownAt:START-300000}];
  const rr=workflow({ctx:y});assert.equal(rr.count.ai,1);assert.equal(rr.r.audit.stage,'POST_GATES');assert.equal(rr.r.audit.reasonCode,'AF_NET_RR_LOW');
 });
@@ -338,7 +345,9 @@ test('postChecks cost rejection preserves spread before/after and recomputable r
  const risk=after.entry-after.stop,policy=a.snapshot.provenance.policy;
  assert.ok(p.quote.latest.spread+policy.extraCost>risk*policy.maxCostRisk+1e-8);
  assert.equal(after.evidence.risk,risk);assert.equal(p.candidate.code,'AF_COST_TOO_HIGH');assert.equal(p.candidate.state,'REJECTED');
- assert.deepEqual(copy(p.gateCodes),['AF_COST_TOO_HIGH']);assert.deepEqual(copy(after),copy(build(c,Object.assign(fixture(),{quote:{bid:100,ask:100.3,spread:.3,timestamp:START/1000-1}})).find(v=>v.id===before.id)));
+ assert.deepEqual(copy(p.gateCodes),['AF_COST_TOO_HIGH']);
+ const expectedNet=((after.target-after.entry)-p.quote.latest.spread-policy.extraCost)/(risk+p.quote.latest.spread+policy.extraCost);
+ assert.ok(Math.abs(after.netR-expectedNet)<1e-9,'rejected evidence net R remains recomputable from the updated spread');
  assert.equal(p.news.state,'PASSED');assert.equal(p.snapshot.state,'PASSED');assert.equal(p.movement.state,'PASSED');
 });
 test('postChecks movement rejection records attempted ID and actual movement without claiming rebuild',()=>{

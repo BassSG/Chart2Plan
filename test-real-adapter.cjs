@@ -25,6 +25,7 @@ const cs=c.afUnifiedCandidateList_(ctx,market,4.5);
 console.log(JSON.stringify(cs.map(x=>({id:x.id,side:x.side,eligible:x.eligible,reason:x.gateCodes,entry:x.entry,sl:x.stop,tp:x.target,netR:x.netR,role:x.meta&&x.meta.role})),null,2));
 assert.equal(cs.length,1);
 assert.equal(cs[0].eligible,true);
+assert.equal(cs[0].valid,true,'Prompt contract requires valid === true');
 assert.equal(cs[0].meta.role,'MAJOR');
 assert.equal(cs[0].setupMode,'TREND_CONTINUATION');
 assert.ok(cs[0].netR>=1.5);

@@ -135,6 +135,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   var marketSpec={mintick:0.01,totalCost:(preQuote.spread_price||0.24)+0.02,bid:context.quote.bid,ask:context.quote.ask,chartSec:(AF_PLANNER_TF[context.executionTF]||900000)/1000};
   var unifiedCandidates=afUnifiedCandidateList_(context,marketSpec,chartAtr);
   var standardCandidates=afPlannerBuild_(context,quality,Date.now());
+  standardCandidates.forEach(function(c){c.valid===true?true:(c.valid=!!c.eligible);});
   var allCandidates=unifiedCandidates.concat(standardCandidates);
   var eligibleCandidates=allCandidates.filter(function(c){return c.eligible;});
   audit.candidates=allCandidates;
@@ -208,8 +209,17 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
    audit.stage='POST_GATES';post.candidate.state='CHECKING';post.candidate.checkedAt=new Date().toISOString();
    var selected=admitted.candidate;
    if(selected.id&&selected.id.indexOf('UNI:')===0){
-     post.candidate.rebuilt=afPlannerClean_(selected);post.candidate.code=null;post.candidate.state='PASSED';
-     admitted.plan.netR=selected.netR;admitted.plan.evidence.executionTF=context.executionTF;admitted.plan.evidence.contextTF=context.contextTF;
+     var latestCost=Number(latest.quote.spread)+0.02,plannedRisk=Math.abs(selected.entry-(selected.stop||selected.sl));
+     var latestGross=(selected.target-selected.entry)*selected.side;
+     var latestNet=plannedRisk>0?(latestGross-latestCost)/(plannedRisk+latestCost):-Infinity;
+     if(!Number.isFinite(latestNet)||latestNet<(AF_UNIFIED_CONFIG.minNetR||1.5)||latestCost>plannedRisk*(AF_UNIFIED_CONFIG.maxCostRisk||0.2)){
+      var costAudit=Object.assign({},selected,{eligible:false,valid:false,netR:latestNet,
+       evidence:Object.assign({},selected.evidence||{},{cost:latestCost,risk:plannedRisk,spreadBefore:context.quote.spread,spreadAfter:latest.quote.spread})});
+      post.candidate.rebuilt=afPlannerClean_(costAudit);post.candidate.code='AF_COST_TOO_HIGH';post.candidate.state='REJECTED';post.gateCodes.push('AF_COST_TOO_HIGH');
+      return finish('NO_TRADE','POST_GATES','AF_COST_TOO_HIGH',null,true);
+     }
+     post.candidate.rebuilt=afPlannerClean_(Object.assign({},selected,{netR:latestNet}));post.candidate.code=null;post.candidate.state='PASSED';
+     admitted.plan.netR=latestNet;admitted.plan.evidence.executionTF=context.executionTF;admitted.plan.evidence.contextTF=context.contextTF;
      admitted.plan.evidence.policyVersion='AF-UNIFIED-1.0';audit.selectedCandidateId=selected.id;
    }else{
      var rebuilt=afPlannerBuild_(latest,quality,Date.now()).filter(function(c){return c.id===selected.id;})[0];
@@ -269,7 +279,7 @@ function afResearchDiagnostics(tradeType,symbol,qc){
   audit.stage='DATA_PRE';var ctx=afBuildAnalystContext_(style,preQuote);audit.snapshot=afPlannerSnapshot_(ctx,quality);
   var gate=afPlannerContextGate_(ctx,Date.now());if(gate)throw Error(gate);
   audit.stage='PLANNER';var unified=afUnifiedCandidateList_(ctx,{mintick:0.01,totalCost:preQuote.spread_price+0.02,bid:preQuote.bid,ask:preQuote.ask,chartSec:(AF_PLANNER_TF['5m']||300000)/1000},ctx.frames['5m'].atr);
-  var legacy=afPlannerBuild_(ctx,quality,Date.now());audit.candidates=unified.concat(legacy);
+  var legacy=afPlannerBuild_(ctx,quality,Date.now());legacy.forEach(function(c){c.valid=!!c.eligible;});audit.candidates=unified.concat(legacy);
   audit.reasonCode=audit.candidates.some(function(c){return c.eligible;})?'AF_ELIGIBLE_CANDIDATES':afPlannerNoCandidateReason_(audit.snapshot,legacy);
   audit.gateCodes=audit.snapshot.evidenceCounts.gateCodes.slice();
   unified.forEach(function(c){(c.gateCodes||[]).forEach(function(g){if(audit.gateCodes.indexOf(g)<0)audit.gateCodes.push(g);});});

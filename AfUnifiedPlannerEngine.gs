@@ -282,7 +282,11 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
 
   // เลือก TP หลักจาก (1) เป้า Fibo ที่สอดคล้อง (2) Nearest Liquidity (3) ขอบหน้า Hard Obstacle
   const fibTarget = fibMatch && fibMatch.nextTarget ? Number(fibMatch.nextTarget) : null;
+  // A mapped BSL/SSL is a real target before a farther Fibo projection;
+  // it is never crossed just because the Fibo book has a distant extension.
   let rawTarget = fibTarget || nearestLiquidityTarget || hardObstaclePrice;
+  if(fibTarget!==null&&nearestLiquidityTarget!==null&&side*(nearestLiquidityTarget-geom.entry)>0&&
+     Math.abs(nearestLiquidityTarget-geom.entry)<Math.abs(fibTarget-geom.entry))rawTarget=nearestLiquidityTarget;
 
   // หากมี Hard Obstacle ขวางอยู่ก่อนถึง rawTarget ต้อง Cap TP ไว้ที่หน้า Hard Obstacle
   if (rawTarget !== null && hardObstaclePrice !== null) {
@@ -465,11 +469,11 @@ function afUnifiedCandidateList_(ctx,market,chartAtr){
     var geom=plan.geom||{},targets=plan.targets||{};
     out.push({id:id,stableKey:id,side:Number(z.side),sideStr:Number(z.side)===1?'BUY':'SELL',entry:geom.entry==null?null:geom.entry,
       stop:geom.sl==null?null:geom.sl,sl:geom.sl==null?null:geom.sl,target:targets.tp==null?null:targets.tp,tp:targets.tp==null?null:targets.tp,
-      netR:targets.netRR==null?null:targets.netRR,risk:geom.risk==null?null:geom.risk,eligible:!!plan.valid,
+      netR:targets.netRR==null?null:targets.netRR,risk:geom.risk==null?null:geom.risk,eligible:!!plan.valid,valid:!!plan.valid,
       evidenceScore:plan.meta&&Number.isFinite(plan.meta.effectiveScore)?plan.meta.effectiveScore:Number(z.score)||0,setupMode:mode,zoneId:zoneId,fiboId:fiboId,
       zoneTF:z.tf||null,fiboTF:plan.fiboSynergy&&plan.fiboSynergy.fiboTf||null,meta:plan.meta||null,geom:geom,targets:targets,
       evidence:{candidateId:id,stableKey:id,zoneId:zoneId,fiboId:fiboId,zoneTF:z.tf||null,fiboTF:plan.fiboSynergy&&plan.fiboSynergy.fiboTf||null,
-        policyVersion:'AF-UNIFIED-1.0',qcThreshold:65,setupMode:mode,meta:plan.meta||null,geom:geom,targets:targets,fibo:plan.fiboSynergy||null},gateCodes:plan.valid?[]:[plan.reason||'AF_UNIFIED_REJECTED']});
+        policyVersion:'AF-UNIFIED-1.0',qcThreshold:65,cost:targets.costUsed==null?null:targets.costUsed,risk:geom.risk==null?null:geom.risk,spreadBefore:market.totalCost==null?market.spread:market.totalCost,setupMode:mode,meta:plan.meta||null,geom:geom,targets:targets,fibo:plan.fiboSynergy||null},gateCodes:plan.valid?[]:[plan.reason||'AF_UNIFIED_REJECTED']});
   }catch(e){out.push({id:'UNI:ERROR:'+String(z.id||''),side:z.side,zoneId:z.id,eligible:false,gateCodes:['AF_UNIFIED_CANDIDATE_ERROR']});}});
   return out;
 }
