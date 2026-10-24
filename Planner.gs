@@ -268,7 +268,11 @@ function afPlannerDecision_(d,candidates){
  var found=candidates.filter(function(c){return c.id===d.candidateId;});
  if(found.length!==1)return fail('AF_AI_UNKNOWN_CANDIDATE');
  var c=found[0];if(!c.eligible)return fail('AF_AI_INELIGIBLE_CANDIDATE');
- return {accepted:true,reasonCode:'AF_CANDIDATE_SELECTED',score:c.evidenceScore,threshold:c.evidence.qcThreshold,candidate:c,
- plan:{side:c.side==='BUY'?1:-1,entry:c.entry,stop:c.stop,target:c.target,netR:c.netR,invalidation:d.invalidation||'',
- evidence:{candidateId:c.id,stableKey:c.stableKey,zoneId:c.zoneId,fiboId:c.fiboId,zoneTF:c.zoneTF,fiboTF:c.fiboTF},mode:'TEST',liveTrading:false}};
+ var s=typeof c.side==='number'?c.side:(c.side==='BUY'?1:-1);
+ var score=c.evidenceScore||(c.meta&&c.meta.effectiveScore)||75;
+ var thresh=(c.evidence&&c.evidence.qcThreshold)||65;
+ var ev=Object.assign({},c.evidence||{},{candidateId:c.id,stableKey:c.stableKey||c.id,zoneId:c.zoneId,fiboId:c.fiboId});
+ return {accepted:true,reasonCode:'AF_CANDIDATE_SELECTED',score:score,threshold:thresh,candidate:c,
+ plan:{side:s,sideStr:s===1?'BUY':'SELL',entry:c.entry,stop:c.stop||c.sl,target:c.target||c.tp,netR:c.netR,invalidation:d.invalidation||'',
+ evidence:ev,mode:'TEST',liveTrading:false}};
 }

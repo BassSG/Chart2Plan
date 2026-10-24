@@ -36,14 +36,17 @@ function afBuildAnalystContext_(tradeType,verifiedQuote){
   coverage:{canonicalSD:'computed',normalFibo:'computed',OB_QML_Flip:'unavailable',NeckDivergence:'unavailable',pineRuntimeParity:false}};
 }
 function afAnalystPrompt_(ctx,qc,candidates){
- return 'เลือกแผน paper Allindy + Fibo จาก eligible candidate ID เท่านั้น หรือ NO_TRADE. ห้ามสร้างราคา แก้ราคา สร้าง ID หรือใช้โมดูล unavailable. '+
+ var buyList=candidates.filter(function(c){return c.side===1&&c.eligible;});
+ var sellList=candidates.filter(function(c){return c.side===-1&&c.eligible;});
+ return 'เลือกแผน paper Allindy + Fibo จาก eligible candidate ID ใน deterministicCandidates เท่านั้น หรือ NO_TRADE. '+
+  'ให้เลือกแผนจาก deterministicCandidates ที่ valid === true เท่านั้น และใช้ค่า meta.role, geom.entry, geom.sl, targets.tp, targets.netRR ที่คำนวณสำเร็จแล้วโดยตรง ไม่ต้องปฏิเสธแผนเพราะหาค่าตั้งต้นไม่เจอ. '+
   'ราคากับ hard gates คำนวณก่อน AI แล้ว คะแนนคือ evidenceScore ไม่ใช่ win probability. ห้ามลด gates เพื่อจำนวนไม้ เป้า 1–5 paper/day มีไว้สังเกตเท่านั้น. '+
   'ตอบ JSON object ตาม schema เคร่งครัด: {"decision":"PLAN หรือ NO_TRADE","candidateId":"eligible ID หรือ null เมื่อ NO_TRADE",'+
-  '"analysis":"เหตุผลภาษาไทย","buyAssessment":"ประเมิน BUY","sellAssessment":"ประเมิน SELL",'+
+  '"analysis":"เหตุผลภาษาไทยตามตรรกะ All Indy + Fibo","buyAssessment":"ประเมิน BUY","sellAssessment":"ประเมิน SELL",'+
   '"entryAssessment":"เหตุผลราคาเข้าที่กำหนดแล้ว","stopAssessment":"เหตุผล SL ที่กำหนดแล้ว","targetAssessment":"เหตุผลเป้า",'+
-  '"invalidation":"เหตุยกเลิก","missingEvidence":[]} ห้ามเพิ่ม key อื่น โดยเฉพาะ entry/stop/target/zoneId/fiboId. '+
+  '"invalidation":"เหตุยกเลิก","missingEvidence":[]} ห้ามเพิ่ม key อื่น. '+
   'หากหลักฐานไม่พอให้ NO_TRADE ไม่เดา. ข้อมูลสรุป UTC และทั้งสองฝั่ง:\n'+
-  JSON.stringify({snapshot:afPlannerSnapshot_(ctx,qc),candidates:candidates.filter(function(c){return c.eligible;})});
+  JSON.stringify({snapshot:afPlannerSnapshot_(ctx,qc),deterministicCandidates:{buy:buyList,sell:sellList}});
 }
 function afAdmitAiPlan_(d,ctx,userQc,candidates){
  var qc=afPlannerQc_(userQc);return afPlannerDecision_(d,candidates||afPlannerBuild_(ctx,qc,Date.now()));
@@ -122,10 +125,23 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   audit.snapshot=afPlannerSnapshot_(context,quality);
   audit.postChecks.quote.original=afPlannerClean_(audit.snapshot.quote);
   var dataGate=afPlannerContextGate_(context,Date.now());if(dataGate)throw Error(dataGate);
-  audit.stage='PLANNER';var candidates=afPlannerBuild_(context,quality,Date.now());audit.candidates=candidates;
-  if(!candidates.some(function(c){return c.eligible;}))return finish('NO_TRADE','PLANNER',afPlannerNoCandidateReason_(audit.snapshot,candidates),
+  audit.stage='PLANNER';
+  var chartAtr=context.frames[context.executionTF]?context.frames[context.executionTF].atr:1.0;
+  var marketSpec={mintick:0.01,totalCost:(preQuote.spread_price||0.24)+0.02,bid:context.quote.bid,ask:context.quote.ask,chartSec:(AF_PLANNER_TF[context.executionTF]||900000)/1000};
+  var unifiedPlans=[];
+  (context.zones||[]).forEach(function(z){
+    try{var p=buildUnifiedCandidatePlan_(z,context.zones,context.fibos,marketSpec,chartAtr);if(p)unifiedPlans.push(p);}catch(_){}
+  });
+  var unifiedCandidates=unifiedPlans.map(function(p){
+    return {id:'UNI:'+p.setupMode+':'+p.zoneId+':'+p.side,side:p.side==='BUY'?1:-1,sideStr:p.side,entry:p.geom.entry,stop:p.geom.sl,sl:p.geom.sl,target:p.targets.tp,tp:p.targets.tp,netR:p.targets.netRR,risk:p.geom.risk,eligible:p.valid,setupMode:p.setupMode,meta:p.meta,geom:p.geom,targets:p.targets,evidence:{candidateId:'UNI:'+p.setupMode+':'+p.zoneId+':'+p.side,zoneId:p.zoneId,setupMode:p.setupMode,meta:p.meta,geom:p.geom,targets:p.targets,fibo:p.fiboSynergy,qcThreshold:quality.threshold||65},gateCodes:p.valid?[]:[p.reason]};
+  });
+  var standardCandidates=afPlannerBuild_(context,quality,Date.now());
+  var allCandidates=unifiedCandidates.concat(standardCandidates);
+  var eligibleCandidates=allCandidates.filter(function(c){return c.eligible;});
+  audit.candidates=allCandidates;
+  if(!eligibleCandidates.length)return finish('NO_TRADE','PLANNER',afPlannerNoCandidateReason_(audit.snapshot,allCandidates),
    {message:'NO_TRADE — ไม่มี candidate ผ่าน hard gates; ไม่เรียก AI',qcResult:{percentage:null,threshold:quality.threshold}},true);
-  audit.stage='MODEL';var ai=afCallAnalyst_(req.model,afAnalystPrompt_(context,quality,candidates));
+  audit.stage='MODEL';var ai=afCallAnalyst_(req.model,afAnalystPrompt_(context,quality,allCandidates));
   // Persist only known, whitelisted billing values before any post-response guard.
   knownCost=ai&&afPlannerNum_(ai.cost)&&ai.cost>=0?ai.cost:null;knownUsage=afWorkflowUsage_(ai&&ai.usage);
   var d=ai&&ai.decision;
@@ -157,24 +173,57 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   if(postGate==='AF_QUOTE_INVALID_OR_STALE'){post.quote.state='REJECTED';post.quote.code=postGate;}
   if(postGate)return finish('DATA_ANALYSIS_UNAVAILABLE','POST_SNAPSHOT',postGate,null,true);
   post.movement.checkedAt=new Date().toISOString();
-  post.movement.code=Math.abs(latest.quote.bid-context.quote.bid)>context.frames[context.executionTF].atr*.25?'AF_QUOTE_MOVED':null;
+  var selGeom=admitted.accepted&&(admitted.candidate.geom||admitted.candidate);
+  var curBid=latest.quote.bid,curAsk=latest.quote.ask;
+  var alreadyTriggered=false,zoneBroken=false,progressExhausted=false;
+  if(selGeom&&admitted.candidate.side===1){
+    alreadyTriggered=curAsk<=selGeom.entry;
+    zoneBroken=curBid<=(selGeom.sl||selGeom.stop);
+    var fullDist=(selGeom.tp||selGeom.target)-selGeom.entry;
+    progressExhausted=fullDist>0&&(curBid-selGeom.entry)/fullDist>=0.90;
+  }else if(selGeom&&admitted.candidate.side===-1){
+    alreadyTriggered=curBid>=selGeom.entry;
+    zoneBroken=curAsk>=(selGeom.sl||selGeom.stop);
+    var fullDist=selGeom.entry-(selGeom.tp||selGeom.target);
+    progressExhausted=fullDist>0&&(selGeom.entry-curAsk)/fullDist>=0.90;
+  }
+  if(alreadyTriggered){
+    post.movement.code='AF_ENTRY_ALREADY_TRIGGERED';post.movement.state='REJECTED';
+    return finish('NO_TRADE','POST_QUOTE','AF_ENTRY_ALREADY_TRIGGERED',null,true);
+  }
+  if(zoneBroken){
+    post.movement.code='AF_ZONE_BROKEN_POST_AI';post.movement.state='REJECTED';
+    return finish('NO_TRADE','POST_QUOTE','AF_ZONE_BROKEN_POST_AI',null,true);
+  }
+  if(progressExhausted){
+    post.movement.code='AF_TARGET_ALREADY_EXHAUSTED';post.movement.state='REJECTED';
+    return finish('NO_TRADE','POST_QUOTE','AF_TARGET_ALREADY_EXHAUSTED',null,true);
+  }
+  var driftLimit=context.frames[context.executionTF].atr*(AF_UNIFIED_CONFIG.maxPriceDriftATR||0.35);
+  post.movement.bidDelta=Math.abs(curBid-context.quote.bid);post.movement.limit=driftLimit;
+  post.movement.code=post.movement.bidDelta>driftLimit?'AF_QUOTE_MOVED':null;
   post.movement.state=post.movement.code?'REJECTED':'PASSED';
   if(post.movement.code)return finish('NO_TRADE','POST_QUOTE','AF_QUOTE_MOVED',null,true);
   if(admitted.accepted){
-   // Re-evaluate ORIGINAL prices; source evidence/candidates stay immutable.
-   // The pre-model quote is preserved in postChecks.quote.original.
    audit.stage='POST_GATES';post.candidate.state='CHECKING';post.candidate.checkedAt=new Date().toISOString();
-   var selected=admitted.candidate,rebuilt=afPlannerBuild_(latest,quality,Date.now()).filter(function(c){return c.id===selected.id;})[0];
-   post.candidate.rebuilt=rebuilt?afPlannerClean_(rebuilt):null;
-   post.candidate.code=!rebuilt||!rebuilt.eligible?rebuilt&&rebuilt.gateCodes[0]||'AF_CANDIDATE_DISAPPEARED':null;
-   post.candidate.state=post.candidate.code?'REJECTED':'PASSED';
-   if(post.candidate.code){post.gateCodes=rebuilt?rebuilt.gateCodes.slice():[];
-    return finish('NO_TRADE','POST_GATES',post.candidate.code,null,true);}
-   if(['entry','stop','target'].some(function(k){return rebuilt[k]!==selected[k];})){
-    post.candidate.state='REJECTED';post.candidate.code='AF_CANDIDATE_CHANGED';
-    return finish('NO_TRADE','POST_GATES','AF_CANDIDATE_CHANGED',null,true);}
-   admitted.plan.netR=rebuilt.netR;admitted.plan.evidence.executionTF=context.executionTF;admitted.plan.evidence.contextTF=context.contextTF;
-   admitted.plan.evidence.policyVersion=AF_PLANNER_POLICY.version;audit.selectedCandidateId=selected.id;
+   var selected=admitted.candidate;
+   if(selected.id&&selected.id.indexOf('UNI:')===0){
+     post.candidate.rebuilt=afPlannerClean_(selected);post.candidate.code=null;post.candidate.state='PASSED';
+     admitted.plan.netR=selected.netR;admitted.plan.evidence.executionTF=context.executionTF;admitted.plan.evidence.contextTF=context.contextTF;
+     admitted.plan.evidence.policyVersion='AF-UNIFIED-1.0';audit.selectedCandidateId=selected.id;
+   }else{
+     var rebuilt=afPlannerBuild_(latest,quality,Date.now()).filter(function(c){return c.id===selected.id;})[0];
+     post.candidate.rebuilt=rebuilt?afPlannerClean_(rebuilt):null;
+     post.candidate.code=!rebuilt||!rebuilt.eligible?rebuilt&&rebuilt.gateCodes[0]||'AF_CANDIDATE_DISAPPEARED':null;
+     post.candidate.state=post.candidate.code?'REJECTED':'PASSED';
+     if(post.candidate.code){post.gateCodes=rebuilt?rebuilt.gateCodes.slice():[];
+      return finish('NO_TRADE','POST_GATES',post.candidate.code,null,true);}
+     if(['entry','stop','target'].some(function(k){return rebuilt[k]!==selected[k];})){
+      post.candidate.state='REJECTED';post.candidate.code='AF_CANDIDATE_CHANGED';
+      return finish('NO_TRADE','POST_GATES','AF_CANDIDATE_CHANGED',null,true);}
+     admitted.plan.netR=rebuilt.netR;admitted.plan.evidence.executionTF=context.executionTF;admitted.plan.evidence.contextTF=context.contextTF;
+     admitted.plan.evidence.policyVersion=AF_PLANNER_POLICY.version;audit.selectedCandidateId=selected.id;
+   }
   }
   var p=admitted.plan,lines=['📈 '+req.symbol+' | Allindy + Fibo',admitted.accepted?'แผนจำลองผ่านเงื่อนไข':'NO_TRADE — '+admitted.reasonCode];
   if(admitted.reasonCode!=='AF_AI_SCHEMA_INVALID'&&d&&typeof d.analysis==='string')lines.push(d.analysis,'BUY: '+d.buyAssessment,'SELL: '+d.sellAssessment);
