@@ -1,6 +1,6 @@
 // Source: production Mt5MarketData.js. GET-only subset, no EA/queue/lifecycle writes.
-const AF_MT5_DEFAULT_URL="https://anything-mrna-work-voted.trycloudflare.com";
-const AF_MT5_RUN={responses:{},quote:null,metadata:null};
+var AF_MT5_DEFAULT_URL = typeof AF_MT5_DEFAULT_URL !== 'undefined' ? AF_MT5_DEFAULT_URL : "https://anything-mrna-work-voted.trycloudflare.com";
+var AF_MT5_RUN = typeof AF_MT5_RUN !== 'undefined' ? AF_MT5_RUN : {responses:{},quote:null,metadata:null};
 
 function afMt5Config_() {
   const p=PropertiesService.getScriptProperties(),base=String(p.getProperty('AF_MT5_API_BASE_URL')||AF_MT5_DEFAULT_URL).replace(/\/+$/,'');
