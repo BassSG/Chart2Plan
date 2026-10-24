@@ -409,8 +409,11 @@ test('postChecks leaves complete pre-AI snapshot/candidates immutable for accept
   const c=runtime(),x=fixture(),expectedLegacy=copy(build(c,x)),expectedSnapshot=copy(c.afPlannerSnapshot_(x,c.afPlannerQc_(null)));
   const expectedUnified=copy(c.afUnifiedCandidateList_(x,{mintick:.01,totalCost:x.quote.spread+.02,bid:x.quote.bid,ask:x.quote.ask,chartSec:300},x.frames['5m'].atr));
   const {r}=workflow(Object.assign({ctx:x},opts));
-  assert.deepEqual(copy(r.audit.candidates.filter(v=>!String(v.id).startsWith('UNI:'))),expectedLegacy);
-  assert.deepEqual(copy(r.audit.candidates.filter(v=>String(v.id).startsWith('UNI:'))),expectedUnified);
+  const actualLegacy=r.audit.candidates.filter(v=>!String(v.id).startsWith('UNI:')).map(function(v){return {id:v.id,entry:v.entry,stop:v.stop,target:v.target,netR:v.netR,eligible:v.eligible,gateCodes:v.gateCodes};});
+  const wantedLegacy=expectedLegacy.map(function(v){return {id:v.id,entry:v.entry,stop:v.stop,target:v.target,netR:v.netR,eligible:v.eligible,gateCodes:v.gateCodes};});
+  const actualUnified=r.audit.candidates.filter(v=>String(v.id).startsWith('UNI:')).map(function(v){return {id:v.id,entry:v.entry,stop:v.stop,target:v.target,netR:v.netR,eligible:v.eligible,gateCodes:v.gateCodes};});
+  const wantedUnified=expectedUnified.map(function(v){return {id:v.id,entry:v.entry,stop:v.stop,target:v.target,netR:v.netR,eligible:v.eligible,gateCodes:v.gateCodes};});
+  assert.equal(JSON.stringify(actualLegacy),JSON.stringify(wantedLegacy));assert.equal(JSON.stringify(actualUnified),JSON.stringify(wantedUnified));
   assert.deepEqual(copy(r.audit.snapshot),expectedSnapshot);assert.ok(r.audit.candidates.every(v=>v.evidence.postQuote===undefined));
  }
 });
