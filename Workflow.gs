@@ -19,7 +19,8 @@ function afBuildAnalystContext_(tradeType,verifiedQuote){
   var bars=pack[tf],tfMs=AF_PLANNER_TF[tf];if(!tfMs||!Array.isArray(bars)||bars.length<50)throw Error('AF_MARKET_HISTORY_INCOMPLETE');
   if(bars.some(function(b){return b.confirmed!==true||!afPlannerNum_(b.openTime)||!afPlannerNum_(b.closeTime)||b.closeTime-b.openTime!==tfMs;}))throw Error('AF_MARKET_BAR_INVALID');
   var m=afMomentum(bars),atr=afAtr_(bars,14),fast=afEma_(bars.map(function(b){return b.close;}),20),slow=afEma_(bars.map(function(b){return b.close;}),50),last=bars[bars.length-1];
-  if(last.closeTime>asOf||asOf-last.closeTime>tfMs+120000)throw Error('AF_MARKET_HISTORY_STALE');
+  var isClosed=quote.weekend_test_mode===true||quote.market_status==='closed'||quote.is_market_open===false;
+  if(last.closeTime>asOf||(!isClosed&&asOf-last.closeTime>tfMs+120000))throw Error('AF_MARKET_HISTORY_STALE');
   frames[tf]={tfMs:tfMs,lastClosedUtc:new Date(last.closeTime).toISOString(),atr:atr[atr.length-1],rsi:m[m.length-1].rsi,
    k:m[m.length-1].k,d:m[m.length-1].d,ema20:fast[fast.length-1],ema50:slow[slow.length-1],liquidity:[],
    closedOHLC:bars.slice(-3000).map(function(b){return [b.openTime,b.closeTime,b.open,b.high,b.low,b.close,b.volume||0];})};
