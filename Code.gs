@@ -3,7 +3,7 @@ function afStatus(){return {system:'ALLINDY_FIBO',revision:'2026-10-24-research-
 
 function doGet(e) {
   if(e&&e.parameter&&e.parameter.format==='json') return afJson_(afStatus());
-  return HtmlService.createTemplateFromFile('Index').evaluate().setTitle('Allindy + Fibo | Chart2Plan');
+  return HtmlService.createTemplateFromFile('Index').evaluate().setTitle('Allindy + Fibo | Chart2Plan').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 function doPost() { return afJson_({accepted:false,reason:'EXTERNAL_INGRESS_DISABLED',liveTrading:false}); }
 function afJson_(v) {return ContentService.createTextOutput(JSON.stringify(v)).setMimeType(ContentService.MimeType.JSON);}
