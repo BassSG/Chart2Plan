@@ -1,0 +1,1805 @@
+  <script>
+    let analysisHistory = [];
+    let currentHistoryIndex = -1;
+    let isEditMode = false;
+    let aiLoadingInterval;
+    let currentStep = 1;
+
+    // Enhanced click effect function
+    function addClickEffect(element) {
+      element.classList.add('clicked');
+      setTimeout(() => {
+        element.classList.remove('clicked');
+      }, 600);
+    }
+
+    function deferTask(task, timeout = 900) {
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => task(), { timeout });
+      } else {
+        setTimeout(task, 16);
+      }
+    }
+
+    function hydrateHistory() {
+      analysisHistory = [];
+      currentHistoryIndex = -1;
+      const storedHistory = premiumGet(premiumHistoryKey(), '');
+      if (!storedHistory) {
+        premiumResetResult();
+        updateNavButtons();
+        return;
+      }
+
+      try {
+        analysisHistory = JSON.parse(storedHistory);
+        if (Array.isArray(analysisHistory)) analysisHistory = analysisHistory.filter(item => item && typeof item.raw === 'string').slice(-50);
+        if (Array.isArray(analysisHistory) && analysisHistory.length > 0) {
+          showResultFromHistory(analysisHistory.length - 1);
+        } else {
+          analysisHistory = [];
+          premiumResetResult();
+          updateNavButtons();
+        }
+      } catch (e) {
+        console.error(e);
+        analysisHistory = [];
+        premiumResetResult();
+        updateNavButtons();
+      }
+    }
+
+    // Scroll Reveal Animation
+    function initScrollReveal() {
+      const elements = document.querySelectorAll('.header, .price-bar, .user-header, .form-group, .result-container, .trigger-management');
+      elements.forEach(el => el.classList.add('reveal-on-scroll'));
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+      elements.forEach(el => observer.observe(el));
+    }
+
+    // เรียกใช้หลังจาก DOM พร้อม
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(initScrollReveal, 500));
+    } else {
+      setTimeout(initScrollReveal, 500);
+    }
+
+    // init ที่เน้น First Paint ก่อน, งานรองค่อย defer
+    (function initApp() {
+      loadTheme();
+
+      const currentUser = window.AF_SOLO_WORKSPACE.username;
+      const currentDisplayName = window.AF_SOLO_WORKSPACE.displayName;
+      localStorage.setItem('af.currentUser',currentUser);
+      localStorage.setItem('af.currentDisplayName',currentDisplayName);
+
+      const mainApp = document.getElementById('mainApp');
+      const authContainer = document.getElementById('authContainer');
+      const welcomeText = document.getElementById('welcomeText');
+
+      if (currentUser && currentDisplayName) {
+        welcomeText.textContent = `ยินดีต้อนรับสู่ AI Trading, ${currentDisplayName}!`;
+        authContainer.style.display = 'none';
+        mainApp.style.display = 'block';
+        deferTask(() => {
+          loadTriggers();
+          loadPriceBar();
+        }, 700);
+
+      } else {
+        mainApp.style.display = 'none';
+        authContainer.style.display = 'block';
+        authContainer.style.opacity = '0';
+        requestAnimationFrame(() => {
+            authContainer.style.transition = 'opacity 0.3s ease';
+            authContainer.style.opacity = '1';
+        });
+      }
+
+      deferTask(hydrateHistory, 1200);
+
+      const pageLoader = document.querySelector('.page-loader');
+      if(pageLoader) {
+          setTimeout(() => {
+              pageLoader.style.width = '100%'; 
+              pageLoader.style.opacity = '0';
+              setTimeout(()=>pageLoader.style.display='none', 300);
+          }, 300); 
+      }
+      
+      deferTask(loadCustomModels, 1400);
+      setupFormValidation();
+      deferTask(() => {
+        checkEmojiSupport();
+        styleQCSelect();
+        updateQcSelectState();
+      }, 1100);
+
+    })();
+
+    // Real-time form validation
+    function setupFormValidation() {
+      // Login form validation
+      const loginUsername = document.getElementById('loginUsername');
+      const loginPassword = document.getElementById('loginPassword');
+      
+      loginUsername.addEventListener('input', function() {
+        validateField(this, 'loginUsernameFeedback', 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร', this.value.trim().length >= 3);
+      });
+      
+      loginPassword.addEventListener('input', function() {
+        validateField(this, 'loginPasswordFeedback', 'รหัสผ่านต้องมีอย่างน้อย 3 ตัวอักษร', this.value.length >= 3);
+      });
+      
+      // Register form validation
+      const registerUsername = document.getElementById('registerUsername');
+      const registerPassword = document.getElementById('registerPassword');
+      const registerConfirmPassword = document.getElementById('registerConfirmPassword');
+      const registerDisplayName = document.getElementById('registerDisplayName');
+      
+      registerUsername.addEventListener('input', function() {
+        validateField(this, 'registerUsernameFeedback', 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร', this.value.trim().length >= 3);
+      });
+      
+      registerPassword.addEventListener('input', function() {
+        const isValid = this.value.length >= 6;
+        validateField(this, 'registerPasswordFeedback', 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร', isValid);
+        
+        // Also validate confirm password if it has value
+        if (registerConfirmPassword.value) {
+          validateField(registerConfirmPassword, 'registerConfirmPasswordFeedback', 'รหัสผ่านไม่ตรงกัน', this.value === registerConfirmPassword.value);
+        }
+      });
+      
+      registerConfirmPassword.addEventListener('input', function() {
+        validateField(this, 'registerConfirmPasswordFeedback', 'รหัสผ่านไม่ตรงกัน', this.value === registerPassword.value);
+      });
+      
+      registerDisplayName.addEventListener('input', function() {
+        validateField(this, 'registerDisplayNameFeedback', 'ชื่อที่แสดงต้องมีอย่างน้อย 2 ตัวอักษร', this.value.trim().length >= 2);
+      });
+    }
+    
+    function validateField(input, feedbackId, message, isValid) {
+      const feedback = document.getElementById(feedbackId);
+      
+      if (input.value === '') {
+        input.classList.remove('is-valid', 'is-invalid');
+        feedback.classList.remove('show');
+        return;
+      }
+      
+      if (isValid) {
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        feedback.textContent = '✓ ถูกต้อง';
+        feedback.className = 'validation-feedback valid show';
+      } else {
+        input.classList.remove('is-valid');
+        input.classList.add('is-invalid');
+        feedback.textContent = message;
+        feedback.className = 'validation-feedback invalid show';
+      }
+    }
+
+    // Enhanced screen management functions with transitions
+    function showAuthScreen() {
+      localStorage.setItem('af.currentUser',window.AF_SOLO_WORKSPACE.username);
+      localStorage.setItem('af.currentDisplayName',window.AF_SOLO_WORKSPACE.displayName);
+      showMainAppScreen(window.AF_SOLO_WORKSPACE.displayName);
+    }
+
+    function showMainAppScreen(displayName) {
+      const authContainer = document.getElementById('authContainer');
+      const mainApp = document.getElementById('mainApp');
+
+      authContainer.style.display = 'none';
+      authContainer.style.opacity = '0';
+
+      document.getElementById('welcomeText').textContent = `ยินดีต้อนรับสู่ AI Trading, ${displayName}!`;
+      mainApp.style.display = 'block';
+      mainApp.style.opacity = '0';
+      setTimeout(() => {
+        mainApp.style.transition = 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+        mainApp.style.opacity = '1';
+      }, 10);
+
+      loadTriggers();
+      loadPriceBar();
+      hydrateHistory();
+    }
+
+    function showDeleteUserPanel () {
+      const container = document.getElementById('deleteUserContainer');
+      const loader    = document.getElementById('deleteUserLoader');
+      const iframe    = document.getElementById('deleteUserIframe');
+    
+      // ถ้ายังไม่เคยโหลด – ใส่ src แล้วรอ onload ซ่อน loader
+      if (iframe.getAttribute('src') === 'about:blank') {
+        iframe.src = iframe.dataset.src;
+        loader.classList.remove('hide');
+        iframe.onload = () => loader.classList.add('hide');
+      }
+    
+      // toggle แสดง/ซ่อน เหมือน Dashboard กับ SnD
+      if (container.style.display === 'none') {
+        container.style.display = 'block';
+        container.scrollIntoView({behavior: 'smooth', block: 'start'});
+      } else {
+        container.style.display = 'none';
+      }
+    }
+
+
+    function togglePasswordVisibility(inputId, toggleIconId) {
+      const input = document.getElementById(inputId);
+      const toggleIcon = document.getElementById(toggleIconId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        toggleIcon.classList.remove('fa-eye');
+        toggleIcon.classList.add('fa-eye-slash');
+      } else {
+        input.type = 'password';
+        toggleIcon.classList.remove('fa-eye-slash');
+        toggleIcon.classList.add('fa-eye');
+      }
+    }
+
+    async function openChangePasswordModal() {
+      const { value: formValues, isConfirmed } = await Swal.fire({
+        title: 'เปลี่ยนรหัสผ่าน',
+        html: `
+          <input type="password" id="swal-oldPassword" class="swal2-input" placeholder="รหัสผ่านเดิม" style="margin-bottom: 10px;">
+          <input type="password" id="swal-newPassword" class="swal2-input" placeholder="รหัสผ่านใหม่" style="margin-bottom: 10px;">
+          <input type="password" id="swal-confirmNewPassword" class="swal2-input" placeholder="ยืนยันรหัสผ่านใหม่">
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-save"></i> บันทึกการเปลี่ยนแปลง',
+        cancelButtonText: '<i class="fas fa-times"></i> ยกเลิก',
+        customClass: {
+          confirmButton: 'swal2-confirm swal2-styled',
+          cancelButton: 'swal2-cancel swal2-styled',
+        },
+        preConfirm: () => {
+          const oldPassword = document.getElementById('swal-oldPassword').value;
+          const newPassword = document.getElementById('swal-newPassword').value;
+          const confirmNewPassword = document.getElementById('swal-confirmNewPassword').value;
+          if (!oldPassword || !newPassword || !confirmNewPassword) {
+            Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบทุกช่อง');
+            return false;
+          }
+          if (newPassword.length < 6) {
+            Swal.showValidationMessage('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');
+            return false;
+          }
+          if (newPassword !== confirmNewPassword) {
+            Swal.showValidationMessage('รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน');
+            return false;
+          }
+          return { oldPassword, newPassword };
+        }
+      });
+
+      if (isConfirmed && formValues) {
+        const { oldPassword, newPassword } = formValues;
+        const currentUser = localStorage.getItem('af.currentUser');
+        Swal.fire({
+          title: 'กำลังดำเนินการ...',
+          text: 'โปรดรอสักครู่',
+          allowOutsideClick: false,
+          didOpen: () => { Swal.showLoading(); }
+        });
+        google.script.run
+          .withSuccessHandler(function(response) {
+            Swal.fire({
+              title: response.success ? 'สำเร็จ!' : 'ผิดพลาด!',
+              text: response.message,
+              icon: response.success ? 'success' : 'error',
+              confirmButtonText: 'ตกลง'
+            });
+          })
+          .withFailureHandler(function(error) {
+            Swal.fire('ผิดพลาด!', 'เกิดข้อผิดพลาดในการสื่อสารกับเซิร์ฟเวอร์: ' + error.message, 'error');
+          })
+          .changePassword(currentUser, oldPassword, newPassword);
+      }
+    }
+
+    function loadRememberedCredentials() {
+      const rememberMe = localStorage.getItem('af.rememberMe') === 'true';
+      const rememberedUsername = localStorage.getItem('af.rememberedUsername');
+      if (rememberMe && rememberedUsername) {
+        document.getElementById('loginUsername').value = rememberedUsername;
+        document.getElementById('af.rememberMe').checked = true;
+      } else {
+        document.getElementById('af.rememberMe').checked = false;
+      }
+    }
+
+/* ===== Custom AI-Model management ===== */
+const CUSTOM_MODELS_KEY = 'af.customModels';
+
+/* เรียกใช้ทุกครั้งที่โหลดหน้า */
+function loadCustomModels(){
+  let arr=JSON.parse(localStorage.getItem(CUSTOM_MODELS_KEY)||'[]');
+  if(!Array.isArray(arr)) arr=[];
+  arr.forEach(m=>appendModelOption(m));
+}
+function appendModelOption(name){
+  if(!name) return;
+  const sel=document.getElementById('aiModel');
+  if([...sel.options].some(o=>o.value===name)) return; // กันซ้ำ
+  const opt=document.createElement('option');
+  opt.value=name;opt.textContent=name+' (Custom)';opt.dataset.custom='true';
+  sel.appendChild(opt);
+}
+
+/* Modal เพิ่มโมเดล */
+async function openAddModelModal () {
+  const { value: formValues, isConfirmed } = await Swal.fire({
+    title: 'เพิ่ม AI Model ใหม่',
+    html: `
+      <input id="swal-modelName" class="swal2-input"
+             placeholder="ชื่อ-หรือ-Path ของโมเดล เช่น my-org/my-model:latest"
+             style="margin-bottom:10px;">
+      <input id="swal-passcode" type="password" class="swal2-input"
+             placeholder="กรอกรหัสผ่าน">`,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'เพิ่ม',
+    cancelButtonText: 'ยกเลิก',
+    preConfirm: () => {
+      const modelName = document.getElementById('swal-modelName').value.trim();
+      const passcode  = document.getElementById('swal-passcode').value.trim();
+
+      if (!modelName) {
+        Swal.showValidationMessage('กรุณาระบุชื่อโมเดล');
+        return false;
+      }
+      if (passcode !== '271063') {
+        Swal.showValidationMessage('รหัสผ่านไม่ถูกต้อง');
+        return false;
+      }
+      return { modelName };
+    }
+  });
+
+  if (!isConfirmed || !formValues) return;        // ยกเลิก หรือ validation ไม่ผ่าน
+  const name = formValues.modelName;
+
+  appendModelOption(name);                         // เพิ่ม option ใน <select>
+  const storageKey = 'af.customModels';
+  const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
+  if (!saved.includes(name)) saved.push(name);
+  localStorage.setItem(storageKey, JSON.stringify(saved));
+
+  Swal.fire({ icon: 'success', title: 'เพิ่มแล้ว', text: `${name} ถูกบันทึกเรียบร้อย` });
+}
+
+/* Modal จัดการ/ลบโมเดล */
+async function openManageModelsModal(){
+  let arr=JSON.parse(localStorage.getItem(CUSTOM_MODELS_KEY)||'[]');
+  if(!arr.length){Swal.fire('ยังไม่มีโมเดลที่เพิ่มเอง','','info');return;}
+  const html=arr.map(m=>`
+     <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;">
+       <span>${m}</span>
+       <button class="delete-btn btn-click-effect" data-model="${m}"
+               style="padding:6px 10px;font-size:.8rem;">
+         <i class="fas fa-trash-alt"></i>
+       </button>
+     </div>`).join('');
+  await Swal.fire({
+    title:'จัดการโมเดลที่เพิ่มเอง',html:`<div id="mdlList">${html}</div>`,
+    showCancelButton:true,cancelButtonText:'ปิด',confirmButtonText:'เสร็จสิ้น',
+    didOpen:()=>{
+      document.querySelectorAll('#mdlList button.delete-btn').forEach(b=>{
+        b.addEventListener('click',()=>{ removeCustomModel(b.dataset.model); b.parentNode.remove(); });
+      });
+    }
+  });
+}
+function removeCustomModel(name){
+  let arr=JSON.parse(localStorage.getItem(CUSTOM_MODELS_KEY)||'[]').filter(m=>m!==name);
+  localStorage.setItem(CUSTOM_MODELS_KEY,JSON.stringify(arr));
+  const sel=document.getElementById('aiModel');
+  [...sel.options].filter(o=>o.value===name).forEach(o=>o.remove());
+  if(sel.value===name) sel.selectedIndex=0; // reset ถ้าเลือกอันที่ถูกลบอยู่
+}
+
+    function handleRegister() {
+      const username = document.getElementById('registerUsername').value.trim();
+      const password = document.getElementById('registerPassword').value;
+      const confirmPassword = document.getElementById('registerConfirmPassword').value;
+      const displayName = document.getElementById('registerDisplayName').value.trim();
+      const lineOAUserId = document.getElementById('registerLineOAUserId').value.trim();
+      const channelAccessToken = document.getElementById('registerChannelAccessToken').value.trim();
+      const registerError = document.getElementById('registerError');
+      const registerSuccess = document.getElementById('registerSuccess');
+
+      registerError.style.display = 'none';
+      registerSuccess.style.display = 'none';
+
+      if (!username || !password || !confirmPassword || !displayName) {
+        registerError.textContent = 'กรุณากรอกข้อมูลที่จำเป็นให้ครบ (Username, Password, Confirm Password, Display Name)';
+        registerError.style.display = 'block';
+        return;
+      }
+      if (password.length < 6) {
+        registerError.textContent = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+        registerError.style.display = 'block';
+        return;
+      }
+      if (password !== confirmPassword) {
+        registerError.textContent = 'รหัสผ่านไม่ตรงกัน';
+        registerError.style.display = 'block';
+        return;
+      }
+      Swal.fire({ 
+        title: 'กำลังลงทะเบียน...', 
+        text: 'โปรดรอสักครู่', 
+        allowOutsideClick: false, 
+        didOpen: () => { Swal.showLoading(); }
+      });
+      google.script.run
+        .withSuccessHandler(function(response) {
+          Swal.close();
+          if (response.success) {
+            registerSuccess.textContent = response.message;
+            registerSuccess.style.display = 'block';
+            registerError.style.display = 'none';
+            ['registerUsername', 'registerPassword', 'registerConfirmPassword', 'registerDisplayName', 'registerLineOAUserId', 'registerChannelAccessToken']
+              .forEach(id => document.getElementById(id).value = '');
+            Swal.fire({
+              title: 'สำเร็จ!', 
+              text: response.message, 
+              icon: 'success', 
+              confirmButtonText: 'ไปหน้าเข้าสู่ระบบ'
+            }).then(() => showLoginForm());
+          } else {
+            registerError.textContent = response.message;
+            registerError.style.display = 'block';
+            registerSuccess.style.display = 'none';
+            Swal.fire('ลงทะเบียนไม่สำเร็จ', response.message, 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          Swal.close();
+          registerError.textContent = '⚠️ เกิดข้อผิดพลาดในการลงทะเบียน: ' + error.message;
+          registerError.style.display = 'block';
+          console.error(error);
+          Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถดำเนินการลงทะเบียนได้: ' + error.message, 'error');
+        })
+        .registerUser(username, password, displayName, lineOAUserId, channelAccessToken);
+    }
+
+    function handleLogin() {
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const rememberMe = document.getElementById('af.rememberMe').checked;
+      const loginError = document.getElementById('loginError');
+      loginError.style.display = 'none';
+
+      if (!username || !password) {
+        loginError.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+        loginError.style.display = 'block';
+        return;
+      }
+      
+      // Add loading state to button
+      const loginBtn = document.getElementById('loginBtn');
+      loginBtn.classList.add('btn-loading');
+      loginBtn.disabled = true;
+      
+      Swal.fire({ 
+        title: 'กำลังเข้าสู่ระบบ...', 
+        text: 'โปรดรอสักครู่', 
+        allowOutsideClick: false, 
+        didOpen: () => { Swal.showLoading(); }
+      });
+      
+      google.script.run
+        .withSuccessHandler(function(response) {
+          Swal.close();
+          loginBtn.classList.remove('btn-loading');
+          loginBtn.disabled = false;
+          
+          if (response.success) {
+            localStorage.setItem('af.currentUser', username);
+            localStorage.setItem('af.currentDisplayName', response.displayName);
+            if (response.lineOAUserId) localStorage.setItem('af.lineOAUserId', response.lineOAUserId); 
+            else localStorage.removeItem('af.lineOAUserId');
+            if (response.channelAccessToken) localStorage.setItem('af.channelAccessToken', response.channelAccessToken); 
+            else localStorage.removeItem('af.channelAccessToken');
+
+            if (rememberMe) {
+              localStorage.setItem('af.rememberedUsername', username);
+              localStorage.setItem('af.rememberMe', 'true');
+            } else {
+              localStorage.removeItem('af.rememberedUsername');
+              localStorage.removeItem('af.rememberMe');
+            }
+            showMainAppScreen(response.displayName);
+            loginError.style.display = 'none';
+          } else {
+            loginError.textContent = response.message;
+            loginError.style.display = 'block';
+            Swal.fire('เข้าสู่ระบบไม่สำเร็จ', response.message, 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          Swal.close();
+          loginBtn.classList.remove('btn-loading');
+          loginBtn.disabled = false;
+          
+          loginError.textContent = '⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error.message;
+          loginError.style.display = 'block';
+          console.error("Login Failure Handler:", error);
+          Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเข้าสู่ระบบได้: ' + error.message, 'error');
+        })
+        .loginUser(username, password);
+    }
+
+function logout() {
+  if (premiumRun.busy) {showNotification('รอให้รอบวิเคราะห์สิ้นสุดก่อนออกจากระบบ','warning'); return;}
+  // ปิด dropdown ก่อน
+  const dropdown = document.getElementById('userDropdown');
+  if (dropdown) {
+    dropdown.classList.remove('show');
+  }
+  
+  Swal.fire({
+    title: 'คุณต้องการออกจากระบบหรือไม่?',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'ใช่, ออกจากระบบ',
+    cancelButtonText: 'ยกเลิก'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      localStorage.removeItem('af.currentUser');
+      localStorage.removeItem('af.currentDisplayName');
+      localStorage.removeItem('af.lineOAUserId');
+      localStorage.removeItem('af.channelAccessToken');
+      analysisHistory=[]; currentHistoryIndex=-1; premiumResetResult();
+
+      showAuthScreen();
+      document.getElementById('loginUsername').value = localStorage.getItem('af.rememberedUsername') || '';
+      document.getElementById('loginPassword').value = '';
+      document.getElementById('loginError').style.display = 'none';
+      const triggersTableBody = document.querySelector('#triggersTable tbody');
+      if (triggersTableBody) {
+        triggersTableBody.innerHTML = '';
+      }
+      
+      showNotification('ออกจากระบบแล้ว', 'success');
+    }
+  });
+}
+// Enhanced AI Analysis Loading Functions
+function showAILoadingModal() {
+  premiumOpenRunDialog();
+}
+
+function hideAILoadingModal() {
+  premiumCloseRunDialog();
+}
+
+function startAILoadingAnimation() {
+  premiumTick();
+}
+
+function updateProcessingStep(step) {
+  // Remove active class from all steps
+  document.querySelectorAll('.processing-step').forEach(s => s.classList.remove('active'));
+  
+  // Add active class to current step
+  const currentStepElement = document.getElementById(`step${step}`);
+  if (currentStepElement) {
+    currentStepElement.classList.add('active');
+  }
+}
+
+(function installSwalPatch(){
+  function patch(){
+    if (!window.Swal || !Swal.fire) return;   // ถ้ายังไม่พร้อมก็ไม่ทำอะไร
+    const origFire = Swal.fire.bind(Swal);
+    const FAIL_TITLES = ['วิเคราะห์ไม่ผ่าน','ไม่ผ่าน QC','QC ไม่ผ่าน','ไม่ผ่านเกณฑ์','QC Fail'];
+
+    Swal.fire = function patchedFire(...args){
+      let opts;
+      if (typeof args[0] === 'object') opts = { ...args[0] };
+      else opts = { title: args[0], html: args[1], icon: args[2] };
+
+      const title = String(opts.title || '');
+      const raw   = String(opts.html || opts.text || '');
+
+      const isQcFail =
+        FAIL_TITLES.some(k => title.includes(k)) ||
+        (/QC/i.test(title) && /(ไม่ผ่าน|fail)/i.test(title));
+
+      if (isQcFail){
+        const { qcScore, reasons, suggestions } = parseFailText(raw);
+        opts.html = buildQcFailHtml(qcScore, reasons, suggestions);
+        delete opts.text; // ใช้ html แทน
+      }
+      return (typeof args[0] === 'object')
+        ? origFire(opts)
+        : origFire(opts.title, opts.html, opts.icon);
+    };
+
+    function parseFailText(s){
+      const lines = s.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+      const reasons=[], suggestions=[];
+      const percent = (s.match(/(\d{2,3})\s*%/g)||[])
+        .map(n=>parseInt(n,10)).find(n=>n<=100) || 0;
+      lines.forEach(l=>{
+        l = l.replace(/^[-•]\s*/,'');
+        if (/^(แนะนำ|ควร|ลอง|รอ|ปรับ|พิจารณา|Suggestion|Advice)/i.test(l)) suggestions.push(l);
+        else reasons.push(l);
+      });
+      return { qcScore: percent, reasons, suggestions };
+    }
+
+    function buildQcFailHtml(score, reasons, suggestions){
+      const get = id => document.getElementById(id);
+      const symbol = get('symbol')?.value || '-';
+      const qcThreshold = parseInt(get('qcLevel')?.value || 65,10);
+      const modelName = get('aiModel')?.value || '-';
+      return `
+        <div class="ai-card" style="padding:16px 14px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px;">
+            <span class="qc-badge">QC: ${score}%</span>
+            <span class="qc-badge" style="background:linear-gradient(90deg,#ef4444,#f59e0b)">Threshold: ${qcThreshold}%</span>
+            <span class="qc-badge">${escapeHtml(symbol)}</span>
+            <span class="qc-badge">Model: ${escapeHtml(modelName)}</span>
+          </div>
+          <div class="qc-bar"><div class="qc-fill" style="width:${Math.min(100,score)}%"></div></div>
+          <div class="qc-threshold">ต้อง ≥ ${qcThreshold}% • ได้ ${score}%</div>
+          ${reasons?.length ? `<h4>สาเหตุที่ไม่ผ่าน</h4>${renderList(reasons)}` : ''}
+          ${suggestions?.length ? `<h4>คำแนะนำ</h4>${renderList(suggestions)}` : ''}
+        </div>`;
+    }
+
+    function renderList(items){
+      return `<ul style="margin:6px 0 8px 1.1em;padding:0;">${
+        items.map(x=>`<li>${escapeHtml(String(x))}</li>`).join('')
+      }</ul>`;
+    }
+    function escapeHtml(s){
+      return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    }
+  }
+
+  // ให้แน่ใจว่าแพตช์ทำงานหลัง sweetalert2 (defer) โหลดเสร็จ
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', patch);
+  } else {
+    patch();
+  }
+})();
+function stopAILoadingAnimation() {
+  if (premiumRun.timer) clearInterval(premiumRun.timer);
+  premiumRun.timer = null;
+}
+    function checkLoginStatus() {
+      const currentUser = localStorage.getItem('af.currentUser');
+      const currentDisplayName = localStorage.getItem('af.currentDisplayName');
+      if (currentUser && currentDisplayName) {
+        showMainAppScreen(currentDisplayName);
+      } else {
+        showAuthScreen();
+      }
+    }
+
+    function showRegisterForm() {
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('registerForm').style.display = 'block';
+      document.getElementById('registerError').style.display = 'none';
+      document.getElementById('registerSuccess').style.display = 'none';
+      document.getElementById('loginError').style.display = 'none';
+      
+      // Clear validation states
+      ['registerUsername', 'registerPassword', 'registerConfirmPassword', 'registerDisplayName'].forEach(id => {
+        const input = document.getElementById(id);
+        input.classList.remove('is-valid', 'is-invalid');
+        const feedback = document.getElementById(id + 'Feedback');
+        if (feedback) feedback.classList.remove('show');
+      });
+    }
+
+    function showLoginForm() {
+      document.getElementById('registerForm').style.display = 'none';
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('loginError').style.display = 'none';
+      document.getElementById('registerError').style.display = 'none';
+      document.getElementById('registerSuccess').style.display = 'none';
+      
+      // Clear validation states
+      ['loginUsername', 'loginPassword'].forEach(id => {
+        const input = document.getElementById(id);
+        input.classList.remove('is-valid', 'is-invalid');
+        const feedback = document.getElementById(id + 'Feedback');
+        if (feedback) feedback.classList.remove('show');
+      });
+    }
+
+    function toggleUserDropdown() {
+      const dropdown = document.getElementById('userDropdown');
+      dropdown.classList.toggle('show');
+    }
+
+window.onclick = function(event) {
+  const userDropdown = document.getElementById('userDropdown');
+  const gearBtn = document.querySelector('.gear-btn');
+  
+  if (userDropdown && userDropdown.classList.contains('show')) {
+    if (!gearBtn.contains(event.target) && !userDropdown.contains(event.target)) {
+      userDropdown.classList.remove('show');
+    }
+  }
+}
+
+    function toggleTriggerTableDisplay() {
+      const container = document.getElementById('triggerTableContainer');
+      const icon = document.getElementById('triggerToggleIcon');
+      const isHidden = !container.classList.contains('show');
+
+      if (isHidden) {
+        container.classList.add('show');
+        container.style.maxHeight = '';
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-up');
+      } else {
+        container.classList.remove('show');
+        container.style.maxHeight = '';
+        icon.classList.remove('fa-chevron-up');
+        icon.classList.add('fa-chevron-down');
+      }
+    }
+
+/**
+ * แปลงข้อความที่มี **text** ให้เป็น <strong>text</strong>
+ * @param {string} text - ข้อความที่ต้องการแปลง
+ * @return {string} - ข้อความที่ถูกแปลงแล้ว
+ */
+function formatTextWithBold(text) {
+  if (!text || typeof text !== 'string') return text;
+  
+  // ใช้ Regular Expression เพื่อหา **ข้อความ** และแปลงเป็น <strong>ข้อความ</strong>
+  return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+}
+
+/**
+ * แปลงข้อความใน element และแสดงผลเป็น HTML
+ * @param {HTMLElement} element - Element ที่ต้องการแปลงข้อความ
+ */
+function applyBoldFormatting(element) {
+  if (!element) return;
+  
+  const originalText = element.textContent || element.innerText || '';
+  const formattedHTML = formatTextWithBold(originalText);
+  
+  // ใช้ innerHTML เพื่อแสดงผล HTML tags
+  element.innerHTML = formattedHTML;
+}
+
+/**
+ * แปลงข้อความทั้งหมดใน result container
+ */
+function formatResultContent() {
+  const resultElement = document.getElementById('result');
+  if (resultElement) {
+    applyBoldFormatting(resultElement);
+  }
+}
+
+/**
+ * ฟังก์ชันใหม่: อัปเดตสถานะ (เปิด/ปิด) ของปุ่มย้อนกลับ/ถัดไป
+ * เพื่อป้องกันการกดเมื่อไม่มีประวัติให้ย้อนหรือไปต่อ
+ */
+function updateNavButtons() {
+    const prevBtn = document.querySelector('button[onclick="showPreviousResult()"]');
+    const nextBtn = document.querySelector('button[onclick="showNextResult()"]');
+
+    if (!prevBtn || !nextBtn) return;
+
+    const historyExists = analysisHistory && analysisHistory.length > 0;
+
+    // ปิดปุ่ม "ย้อนกลับ" ถ้าอยู่ที่รายการแรกสุด หรือไม่มีประวัติ
+    prevBtn.disabled = premiumRun.busy || !historyExists || currentHistoryIndex <= 0;
+    prevBtn.style.opacity = prevBtn.disabled ? '0.6' : '1';
+    prevBtn.style.cursor = prevBtn.disabled ? 'not-allowed' : 'pointer';
+
+    // ปิดปุ่ม "ถัดไป" ถ้าอยู่ที่รายการล่าสุด หรือไม่มีประวัติ
+    nextBtn.disabled = premiumRun.busy || !historyExists || currentHistoryIndex >= analysisHistory.length - 1;
+    nextBtn.style.opacity = nextBtn.disabled ? '0.6' : '1';
+    nextBtn.style.cursor = nextBtn.disabled ? 'not-allowed' : 'pointer';
+}
+
+/**
+ * ฟังก์ชันใหม่: แสดงผลลัพธ์จากการ์ดที่เก็บในประวัติ ตาม index ที่ระบุ
+ * @param {number} index - ตำแหน่งของข้อมูลในประวัติที่ต้องการแสดง
+ */
+function showResultFromHistory(index) {
+  if (!analysisHistory || analysisHistory.length === 0) {
+    updateNavButtons();
+    return;
+  }
+
+  // ตรวจสอบไม่ให้ index ออกนอกขอบเขตของ Array
+  currentHistoryIndex = Math.max(0, Math.min(index, analysisHistory.length - 1));
+
+  const historyItem = analysisHistory[currentHistoryIndex];
+  const resultDiv = document.getElementById('result');
+  document.getElementById('copyBtn').disabled = false;
+  const modelSpan = document.getElementById('modelName');
+
+  if (historyItem && typeof historyItem.raw === 'string') {
+    // นำ HTML ของการ์ดที่เก็บไว้มาแสดงผลเลย
+    premiumDisplayRecord(historyItem);
+    // อัปเดตชื่อโมเดลที่ใช้
+    modelSpan.textContent = historyItem.model || '-';
+  } else {
+    // กรณีข้อมูลในประวัติผิดพลาด
+    resultDiv.innerHTML = '<em>ไม่สามารถแสดงผลการวิเคราะห์จากประวัติได้</em>';
+    modelSpan.textContent = '-';
+  }
+
+  // ใส่ Animation ให้เหมือนผลลัพธ์ใหม่ออกมา
+  resultDiv.classList.remove('new-result-animation');
+  void resultDiv.offsetWidth; // บังคับให้ browser re-render
+  resultDiv.classList.add('new-result-animation');
+
+  // อัปเดตสถานะปุ่ม
+  updateNavButtons();
+  premiumHistoryCount();
+}
+
+/* ===== แจ้งเสร็จ + auto-scroll ===== */
+function showAnalysisCompleted(){
+  Swal.fire({
+    html: `
+      <div class="ai-done-icon"><i class="fas fa-check"></i></div>
+      <h2 class="ai-done-title">วิเคราะห์เสร็จสิ้น</h2>
+      <div class="ai-done-sub">AI ได้ประมวลผลเรียบร้อยแล้ว</div>
+    `,
+    showConfirmButton: true,
+    confirmButtonText: 'ดูผลทันที',
+    customClass: {
+      popup: 'ai-done-popup',
+      confirmButton: 'ai-done-btn'
+    },
+    width: 420,
+    timer: 3000,
+    timerProgressBar: true,
+    allowOutsideClick: false,
+    didOpen: (el) => {
+      /* เคลื่อนไหว progress bar ให้ soft-pulse */
+      el.querySelector('.swal2-timer-progress-bar')
+        .style.background = 'var(--primary-gradient-light)';
+    }
+  }).then(() => scrollToResult());
+}
+
+/* === helper: รอ modal ปิดแล้วเลื่อนไปผลลัพธ์ === */
+function scrollToResult(){
+  const target = document.querySelector('.result-container');
+  if(!target) return;
+  target.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+}
+
+/**
+ * แก้ไข: ฟังก์ชัน performAnalysis ทั้งหมด
+ * (แก้ไขส่วนท้ายสุดเพื่อบันทึกชื่อโมเดล และเรียกอัปเดตปุ่ม)
+ */
+function performAnalysis () {
+  if (premiumRun.busy) return;
+  const currentUser = window.AF_SOLO_WORKSPACE.username;
+  const tradeType = document.getElementById('tradeType').value;
+  const symbol    = document.getElementById('symbol').value;
+  const modelSel  = document.getElementById('aiModel').value;
+ 
+  /* ---------- QC ---------- */
+  const dynamicQc   = document.getElementById('dynamicQcToggle').checked;
+  const qcLevelUI   = parseInt(document.getElementById('qcLevel').value, 10);
+  const qcToSend    = dynamicQc ? null : qcLevelUI;   // null = ให้ AI กำหนดเอง
+ 
+  const options={tradeType,symbol,model:modelSel,dynamicQc,qcLevel:qcToSend};
+  const request=premiumStartRun(options);
+  try {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        if(request!==premiumRun.request) return;
+        premiumFinishRun(); premiumRecordResponse(response,options);
+      })
+      .withFailureHandler(function(error) {
+        if(request!==premiumRun.request) return;
+        premiumFinishRun(); premiumRunFailure(error,options);
+      })
+      .processAnalysisWithDetailedLog(tradeType,symbol,currentUser,modelSel,qcToSend);
+  } catch(error) {premiumFinishRun(); premiumRunFailure(error,options);}
+}
+
+/**
+ * แก้ไข: ฟังก์ชันสำหรับกดปุ่ม "ย้อนกลับ"
+ */
+function showPreviousResult() {
+  showResultFromHistory(currentHistoryIndex - 1);
+}
+
+/**
+ * แก้ไข: ฟังก์ชันสำหรับกดปุ่ม "ถัดไป"
+ */
+function showNextResult() {
+  showResultFromHistory(currentHistoryIndex + 1);
+}
+
+function showResultByIndex(idx){
+  if(premiumRun.busy) return;
+  showResultFromHistory(idx);
+}
+
+/* ---------- helper no-optional-chaining ---------- */
+function g (re, idx) {
+  const m = txt.match(re);
+  return m ? m[idx || 1] : '-';
+}
+
+/**
+ * ฟังก์ชันนี้ถูกแก้ไขเพื่อดึงข้อมูล "เวลา" มาแสดงในการ์ด
+ * โดยคัดลอกโค้ดนี้ไปวางทับฟังก์ชันเดิมได้เลย
+ */
+function renderAnalysisCard(txt, opts) {
+  opts = opts || {};
+
+  /* ---------- helpers ---------- */
+  function g(re, i) { const m = txt.match(re); return m ? m[i || 1] : '-'; }
+  function tp(tag) {
+    const m = txt.match(new RegExp(tag + '\\s*:\\s*([\\d.]+).*?RR\\s*([\\d.:]+)', 'i'));
+    return m ? [m[1], m[2]] : ['-', '-'];
+  }
+  function chip(icon, label, text, cls) {
+    return `<div class="ai-chip ${cls}"><i class="fas fa-${icon}"></i><div><span>${label}</span><br>${text}</div></div>`;
+  }
+
+  /* ---------- ดึงข้อมูลหลัก (เหมือนเดิม) ---------- */
+  const sym = g(/📈 (.+?) \(/);
+  const type = g(/\((daytrade|swingtrade|scalping)\)/i).toUpperCase();
+  const att = g(/Attempt\s*:?\s*([0-9]+\/[0-9]+)/i);
+  const order = g(/TypeOrder\s*:\s*([\w ]+)/);
+  const isBuy = /buy/i.test(order);
+  const entry = g(/Entry\s*:\s*([\d.]+)/);
+  const sl = g(/StopLoss\s*:\s*([\d.]+)/);
+  const tp1 = tp('TP1');
+  const price = g(/(?:💰\s*)?(?:ราคา|Price|Current Price)\s*[:\-]?\s*\$?([\d.]+)/i);
+  const atr = g(/ATR-14\s*:\s*([\d.]+)/);
+  const sent = g(/Sentiment\s*:\s*(.+)/);
+  const risk = g(/Risk\s*:\s*(.+)/);
+  const timeAI = g(/Timing\s*:\s*(.+)/);
+  const analysisTime = g(/⏰ Time:\s*([\d:]+)/);
+
+  /* ---------- ข้อมูล QC (เหมือนเดิม) ---------- */
+  const qcMatch = txt.match(/QC Score:\s*([\d.]+)\/(\d+).*?\(([\d.]+)%\)/);
+  let qcBar = '';
+  if (qcMatch) {
+    const pct = Number(qcMatch[3]);
+    const score = Number(qcMatch[1]);
+    const max = Number(qcMatch[2]);
+    let threshold = 65;
+    if (opts.qcInfo) {
+      const t = opts.qcInfo.match(/(\d+)%/);
+      if (t) threshold = Number(t[1]);
+    }
+    const pass = pct >= threshold;
+    const statusTxt = pass ? '✔︎ PASS' : '✖︎ FAIL';
+    const statusCol = pass ? '#10b981' : '#ef4444';
+    qcBar = `<div class="qc-wrap"><div class="qc-bar"><div class="qc-fill" style="width:${pct}%"></div><div class="qc-marker" style="left:${threshold}%"></div></div><div class="qc-label" style="color:${statusCol}">Score ${pct.toFixed(1)}% ${statusTxt} (${score} / ${max})</div><div class="qc-threshold" style="font-size:.75rem;margin-top:2px;color:var(--text-tertiary-light);">เกณฑ์ผ่าน ${threshold} %</div></div>`;
+  }
+
+  /* ---------- badge เส้นบน (เหมือนเดิม) ---------- */
+  const badgeColor = isBuy ? '#10b981' : '#ef4444';
+  const typeBadge = `<div style="background:${badgeColor};color:#fff;padding:8px 16px;border-radius:12px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:22px;"><span>${order}</span>${opts.model ? `<span style="font-size:.8rem;opacity:.85;">${opts.model}</span>` : ''}</div>`;
+
+  /* ---------- สร้าง HTML ทั้งการ์ด ---------- */
+/* ---------- เตรียม HTML ย่อย เฉพาะเมื่อมีข้อมูล ---------- */
+const priceHTML = price !== '-'                     /* ถ้าได้ Current Price */
+  ? `<div><i class="fas fa-dollar-sign"></i> ${price}</div>`
+  : '';
+
+const costHTML  = opts.cost && opts.cost !== '$-'   /* ถ้าได้ Cost */
+  ? `<div><i class="fas fa-coins"></i> Cost : <strong>${opts.cost}</strong></div>`
+  : '';
+
+/* ---------- สร้างการ์ด ---------- */
+return [
+  '<div class="ai-card">',
+
+  /* badge Buy / Sell + ชื่อโมเดล */
+  typeBadge,
+
+  /* หัวการ์ด */
+  `<header>
+     <div class="ai-h-sym">${sym}</div>
+     ${att !== '-' ? `<div class="ai-h-sub">${att}</div>` : ''}
+   </header>`,
+
+  /* กล่อง Entry / SL */
+  `<div class="ai-grid2">
+     ${box('Entry', entry)}
+     ${box('Stop&nbsp;Loss', sl)}
+   </div>`,
+
+  /* Take-Profit section */
+  `<section class="tp">
+     <div class="tp-title">Take Profit</div>
+     ${tpRow('TP', tp1)}
+   </section>`,
+
+  /* Info bar  ─ ใส่ Price / Cost แค่ตอนมีค่า */
+  `<div class="ai-info">
+     <div><i class="fas fa-tag"></i> ${order}</div>
+     ${priceHTML}
+     <div><i class="fas fa-wave-square"></i> ATR-14 ${atr}</div>
+     ${costHTML}
+     ${analysisTime !== '-' ? `<div><i class="far fa-clock"></i> Time : <strong>${analysisTime}</strong></div>` : ''}
+   </div>`,
+
+  /* QC badge + แถบ QC */
+  (opts.qcInfo ? `<span class="qc-badge">${opts.qcInfo}</span>` : '') + qcBar,
+
+  /* ---------- ปิดการ์ด ---------- */
+  '</div>'
+].join('');
+
+
+  /* ---- sub-helpers ---- */
+  function box(label, val) {
+    return `<div class="ai-box"><span>${label}</span><strong>${val}</strong></div>`;
+  }
+
+  //  ★ ★ ★ ฟังก์ชันย่อยที่แก้ไขโครงสร้าง HTML ★ ★ ★
+  function tpRow(label, arr) {
+    // arr[0] คือ ราคา, arr[1] คือ RR
+    // เพิ่ม class "tp-price" ให้กับราคา และใส่คำว่า "RR" หน้าตัวเลข
+    return `<div class="tp-row">` +
+             `<span>${label}</span>` +
+             `<div class="tp-price">${arr[0]}</div>` +
+             `<small>RR ${arr[1]}</small>` +
+           `</div>`;
+  }
+}
+
+/* ------------------------------------------------------------------
+   copyResult() --► 1) คัดลอกข้อความ  2) สร้าง-ดาวน์โหลดรูปภาพผลวิเคราะห์
+   ------------------------------------------------------------------ */
+async function copyResult (){
+  const item   = analysisHistory[currentHistoryIndex];
+  const result = document.querySelector('.result-container');      // กรอบใหญ่
+  const card   = result.querySelector('.ai-card');                 // การ์ดด้านใน
+  if(!item || !card) return showNotification('ไม่มีข้อมูลให้คัดลอก','warning');
+
+  /* ------------ 1) คัดลอกข้อความ (เหมือนเดิม) ------------ */
+  const copyText=premiumRecordText(item);
+  try      { await navigator.clipboard.writeText(copyText); }
+  catch(e) { fallbackCopyTextToClipboard(copyText); }
+
+  /* ------------ 2) จับภาพแล้วบันทึก / เปิด --------------- */
+  try{
+    if (!window.html2canvas) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.async = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    /*  (1) แปลง DOM ► Canvas   (ใช้ html2canvas) */
+    const canvas = await html2canvas(card,{
+      backgroundColor:getComputedStyle(document.body).getPropertyValue('--space-panel').trim() || '#141d19',
+      scale:2                             // ความละเอียดสูงขึ้น
+    });
+    const blob   = await new Promise(r=>canvas.toBlob(r,'image/png'));
+    if(!blob) throw new Error('ไม่สามารถสร้างไฟล์ภาพได้');
+    const url    = URL.createObjectURL(blob);
+
+    /*  (2) ตรวจ Platform → Mobile / Desktop */
+    const isMobile = /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent);
+
+    if(isMobile){
+      /* — บางเบราเซอร์มือถือไม่อนุญาตดาวน์โหลดอัตโนมัติ —
+         ► เปิดแท็บใหม่ให้ผู้ใช้กดค้าง-บันทึก */
+      await Swal.fire({title:'บันทึกภาพผลวิเคราะห์',imageUrl:url,imageAlt:'ผลวิเคราะห์ Chart2Plan',showConfirmButton:false,showCloseButton:true,footer:'ดาวน์โหลดภาพ หรือกดค้างที่ภาพเพื่อบันทึก',didOpen:function(){
+        const link=document.createElement('a'); link.href=url; link.download='Chart2Plan_'+Date.now()+'.png'; link.textContent='ดาวน์โหลดภาพ'; link.style.color='var(--space-cyan)';
+        const footer=document.querySelector('.swal2-footer'); if(footer) footer.replaceChildren(link);
+      }});
+    }else{
+      /* — Desktop : trigger download ทันที — */
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AI_Analysis_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showNotification('ดาวน์โหลดภาพผลวิเคราะห์แล้ว!','success');
+    }
+
+    /* ปล่อย URL object หลังใช้งาน */
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+
+  }catch(err){
+    console.error(err);
+    showNotification('บันทึกภาพไม่สำเร็จ','error');
+  }
+}
+
+    function fallbackCopyTextToClipboard(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = 0;
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        const successful = document.execCommand('copy');
+        showNotification(successful ? 'คัดลอกผลการวิเคราะห์แล้ว!' : 'การคัดลอกล้มเหลว', successful ? 'success' : 'error');
+      } catch (err) {
+        showNotification('การคัดลอกล้มเหลว', 'error');
+        console.error('Fallback copy failed:', err);
+      }
+      document.body.removeChild(textarea);
+    }
+
+    function showNotification(message = 'คัดลอกเรียบร้อยแล้ว!', type = 'success') {
+      const notification = document.getElementById('notification');
+      notification.textContent = message;
+      notification.className = 'notification show';
+      notification.setAttribute('role',type === 'error' ? 'alert' : 'status');
+      notification.style.background = 'var(--space-panel-soft)';
+      notification.style.color = type === 'error' ? 'var(--premium-red)' : type === 'warning' ? 'var(--premium-gold)' : 'var(--space-text)';
+      clearTimeout(notification._hideTimer);
+      notification._hideTimer = setTimeout(() => notification.classList.remove('show'),4000);
+    }
+
+    function navigateToFWT() {
+      Swal.fire({
+        title: 'เปิด Forward Test?',
+        text: "คุณต้องการไปยังหน้าเว็บทดสอบ Forward Test หรือไม่?",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-external-link-alt"></i> ใช่, เปิดเลย',
+        cancelButtonText: '<i class="fas fa-times"></i> ยกเลิก',
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({ 
+            title: 'กำลังเปลี่ยนเส้นทาง...', 
+            timer: 1000, 
+            didOpen: () => Swal.showLoading(), 
+            showConfirmButton: false 
+          });
+          window.open('https://basssg.github.io/Alphasense-FowardTest/', '_blank');
+        }
+      });
+    }
+
+    function navigateToAI() {
+      Swal.fire({
+        title: 'เปิดเครื่องมือ AI เพิ่มเติม?',
+        text: "คุณต้องการไปยังหน้าเครื่องมือวิเคราะห์ AI เพิ่มเติมหรือไม่?",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-external-link-alt"></i> ใช่, เปิดเลย',
+        cancelButtonText: '<i class="fas fa-times"></i> ยกเลิก',
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({ 
+            title: 'กำลังเปลี่ยนเส้นทาง...', 
+            timer: 1000, 
+            didOpen: () => Swal.showLoading(), 
+            showConfirmButton: false 
+          });
+          window.open('https://basssg.github.io/Alphasense/', '_blank');
+        }
+      });
+    }
+
+    function loadTriggers() {
+      const currentUser = localStorage.getItem('af.currentUser');
+      if (!currentUser) return;
+
+      const tableBody = document.querySelector('#triggersTable tbody');
+      tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;"><div class="loading" style="border-top-color: var(--primary-color-light);"></div> กำลังโหลดข้อมูล...</td></tr>`;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          tableBody.innerHTML = '';
+          if (response.success) {
+            const triggers = response.triggers.filter(trigger => ['Active', 'Review'].includes(trigger.status));
+            document.getElementById('premiumAlertCount').textContent = triggers.length + ' รายการ';
+            if (triggers.length === 0) {
+              tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">ไม่มี Trigger ที่ Active อยู่</td></tr>`;
+              return;
+            }
+            triggers.forEach(trigger => {
+              const row = document.createElement('tr');
+              const checkboxCol = row.insertCell();
+              checkboxCol.className = 'checkbox-col';
+              checkboxCol.style.display = isEditMode ? '' : 'none';
+              checkboxCol.style.textAlign = 'center';
+              const checkboxInput = document.createElement('input');
+              checkboxInput.type = 'checkbox';
+              checkboxInput.className = 'rowCheckbox';
+              checkboxInput.dataset.alertId = trigger.alertId;
+              checkboxCol.appendChild(checkboxInput);
+
+              row.insertCell().textContent = trigger.symbol;
+              row.insertCell().textContent = trigger.type;
+              row.insertCell().textContent = trigger.alertType || 'N/A';
+              row.insertCell().textContent = trigger.targetPrice || 'N/A';
+              row.insertCell().textContent = trigger.status === 'Review' ? 'Review — ต้องตรวจสอบลำดับราคา' : trigger.status;
+
+              const actionCell = row.insertCell();
+              actionCell.style.textAlign = "right";
+              const deleteBtn = document.createElement('button');
+              deleteBtn.className = 'delete-btn btn-click-effect';
+              deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> ลบ';
+              deleteBtn.onclick = function() { 
+                addClickEffect(this);
+                confirmDeleteAlert(trigger.alertId); 
+              };
+              actionCell.appendChild(deleteBtn);
+              tableBody.appendChild(row);
+            });
+            toggleEditMode(isEditMode, true);
+          } else {
+            Swal.fire('ผิดพลาด', response.message || 'ไม่สามารถโหลดข้อมูล Trigger ได้', 'error');
+            tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">ไม่สามารถโหลดข้อมูล Trigger</td></tr>`;
+          }
+        })
+        .withFailureHandler(function(error) {
+          console.error("Load Triggers Error:", error);
+          document.getElementById('premiumAlertCount').textContent = 'โหลดไม่สำเร็จ';
+          tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">เกิดข้อผิดพลาด: ${premiumEscape(error.message)}</td></tr>`;
+          Swal.fire('ผิดพลาดรุนแรง', 'เกิดข้อผิดพลาดในการดึงข้อมูล Trigger: ' + error.message, 'error');
+        })
+        .manageTriggers('getAll', currentUser);
+    }
+
+    function confirmDeleteAllTriggers() {
+      const currentUser = localStorage.getItem('af.currentUser');
+      if(!currentUser) { 
+        Swal.fire('ข้อผิดพลาด', 'กรุณาเข้าสู่ระบบ', 'error').then(logout); 
+        return; 
+      }
+      Swal.fire({
+        title: 'ยืนยันการลบทั้งหมด?',
+        text: "คุณแน่ใจหรือไม่ที่จะลบ Alert และ Trigger ทั้งหมดของคุณ? การกระทำนี้ไม่สามารถย้อนกลับได้!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-trash-alt"></i> ใช่, ลบทั้งหมด',
+        cancelButtonText: '<i class="fas fa-times"></i> ยกเลิก',
+        confirmButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--danger-color-light').trim(),
+        cancelButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--secondary-color-light').trim(),
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({ 
+            title: 'กำลังลบ...', 
+            text: 'โปรดรอสักครู่', 
+            allowOutsideClick: false, 
+            didOpen: () => { Swal.showLoading(); }
+          });
+          google.script.run
+            .withSuccessHandler(function(response) {
+              Swal.fire({
+                title: response.success ? 'สำเร็จ!' : 'ล้มเหลว', 
+                text: response.message, 
+                icon: response.success ? 'success' : 'error'
+              }).then(() => { 
+                if (response.success) { 
+                  loadTriggers(); 
+                }
+              });
+            })
+            .withFailureHandler(function(error) { 
+              Swal.fire('ผิดพลาด!', 'เกิดข้อผิดพลาด: ' + error.message, 'error'); 
+            })
+            .manageTriggers('deleteAll', currentUser);
+        }
+      });
+    }
+
+    function confirmDeleteAlert(alertId) {
+      Swal.fire({
+        title: 'ยืนยันการลบ?',
+        text: `คุณแน่ใจหรือไม่ที่จะลบกลุ่ม Alert นี้ (ID: ${alertId})?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-trash"></i> ใช่, ลบเลย',
+        cancelButtonText: '<i class="fas fa-ban"></i> ยกเลิก',
+        confirmButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--danger-color-light').trim(),
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({ 
+            title: 'กำลังลบ...', 
+            text: 'โปรดรอสักครู่', 
+            allowOutsideClick: false, 
+            didOpen: () => { Swal.showLoading(); }
+          });
+          google.script.run
+            .withSuccessHandler(function(response) {
+              Swal.fire({
+                title: response.success ? 'สำเร็จ!' : 'ล้มเหลว', 
+                text: response.message, 
+                icon: response.success ? 'success' : 'error'
+              }).then(() => { 
+                if (response.success) { 
+                  loadTriggers(); 
+                }
+              });
+            })
+            .withFailureHandler(function(error) { 
+              Swal.fire('ผิดพลาด!', 'เกิดข้อผิดพลาด: ' + error.message, 'error'); 
+            })
+            .deleteAlert(alertId);
+        }
+      });
+    }
+
+    function toggleEditMode(forceState, forceUpdateUI = false) {
+      if (!forceUpdateUI) {
+        isEditMode = !isEditMode;
+      } else {
+        isEditMode = (typeof forceState === 'boolean') ? forceState : isEditMode;
+      }
+
+      const editBtn = document.getElementById('editBtn');
+      const table = document.getElementById('triggersTable');
+      const selectAllTh = table.querySelector('thead tr th.checkbox-col');
+      const checkboxCols = table.querySelectorAll('tbody tr td.checkbox-col');
+      const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+      const actionCells = table.querySelectorAll('tbody td:last-child .delete-btn');
+
+      if (isEditMode) {
+        editBtn.innerHTML = '<i class="fas fa-check-circle"></i> เสร็จสิ้น Edit';
+        editBtn.classList.add('active-edit');
+        if(selectAllTh) selectAllTh.style.display = '';
+        if(bulkDeleteBtn) bulkDeleteBtn.style.display = 'inline-flex';
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        if(selectAllCheckbox) selectAllCheckbox.checked = false;
+        checkboxCols.forEach(col => col.style.display = '');
+        actionCells.forEach(btn => btn.style.display = 'none');
+      } else {
+        editBtn.innerHTML = '<i class="fas fa-edit"></i> โหมดแก้ไข';
+        editBtn.classList.remove('active-edit');
+        if(selectAllTh) selectAllTh.style.display = 'none';
+        if(bulkDeleteBtn) bulkDeleteBtn.style.display = 'none';
+        checkboxCols.forEach(col => col.style.display = 'none');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        if(selectAllCheckbox) selectAllCheckbox.checked = false;
+        table.querySelectorAll('.rowCheckbox').forEach(cb => cb.checked = false);
+        actionCells.forEach(btn => btn.style.display = 'inline-flex');
+      }
+    }
+
+    function toggleSelectAll(checkbox) {
+      const checkboxes = document.querySelectorAll('.rowCheckbox');
+      checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    }
+
+    function deleteSelectedAlerts() {
+      const selectedCheckboxes = document.querySelectorAll('.rowCheckbox:checked');
+      if (selectedCheckboxes.length === 0) {
+        Swal.fire({
+          title:'ไม่ได้เลือกรายการ', 
+          text:'กรุณาเลือก Alert อย่างน้อยหนึ่งรายการเพื่อลบ', 
+          icon:'info'
+        });
+        return;
+      }
+      const alertIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.alertId);
+      const currentUser = localStorage.getItem('af.currentUser');
+      if(!currentUser) { 
+        Swal.fire('ข้อผิดพลาด', 'กรุณาเข้าสู่ระบบ', 'error').then(logout); 
+        return; 
+      }
+
+      Swal.fire({
+        title: 'ยืนยันการลบรายการที่เลือก?',
+        text: `คุณแน่ใจหรือไม่ที่จะลบ Alert ${alertIds.length} กลุ่มที่เลือก?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-trash-alt"></i> ใช่, ลบที่เลือก',
+        cancelButtonText: '<i class="fas fa-ban"></i> ยกเลิก',
+        confirmButtonColor: getComputedStyle(document.documentElement).getPropertyValue('--danger-color-light').trim(),
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({ 
+            title: 'กำลังลบ...', 
+            text: 'โปรดรอสักครู่', 
+            allowOutsideClick: false, 
+            didOpen: () => { Swal.showLoading(); }
+          });
+          google.script.run
+            .withSuccessHandler(function(response) {
+              Swal.fire({
+                title:response.success ? 'สำเร็จ!' : 'ล้มเหลว', 
+                text:response.message, 
+                icon: response.success ? 'success' : 'error'
+              }).then(() => { 
+                if (response.success) { 
+                  loadTriggers(); 
+                  toggleEditMode(false, true); 
+                }
+              });
+            })
+            .withFailureHandler(function(error) { 
+              Swal.fire('ผิดพลาด!', 'เกิดข้อผิดพลาด: ' + error.message, 'error'); 
+            })
+            .deleteMultipleAlerts(alertIds, currentUser);
+        }
+      });
+    }
+
+    function showStatPopup() {
+      const statBtn = document.getElementById('showStatBtn');
+      const originalHTML = statBtn.innerHTML;
+      statBtn.innerHTML = '<span class="loading" style="border-top-color: currentColor;"></span> กำลังโหลด...';
+      statBtn.disabled = true;
+
+      const currentUser = localStorage.getItem('af.currentUser') || '';
+      if(!currentUser) {
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลผู้ใช้ปัจจุบัน', 'error');
+        statBtn.innerHTML = originalHTML; 
+        statBtn.disabled = false; 
+        logout(); 
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(countObj) {
+          statBtn.innerHTML = originalHTML; 
+          statBtn.disabled = false;
+          if (typeof countObj !== 'object' || countObj === null) {
+            Swal.fire('ข้อมูลไม่ถูกต้อง', 'ไม่สามารถแสดงสถิติได้เนื่องจากข้อมูลมีปัญหา', 'warning');
+            return;
+          }
+
+          const html = `
+            <div style="text-align: left; line-height: 2.2; font-size: 1.1rem; padding: 15px;">
+            <strong style="font-size: 1.3rem; color: var(${document.body.classList.contains('dark-mode') ? '--primary-color-dark' : '--primary-color-light'}); display: block; margin-bottom: 20px; text-align: center;">📊 สถิติแผนจำลอง</strong>
+            <p style="font-size:.9rem;line-height:1.7">${premiumEscape(countObj.note || 'ผล PAPER จากแท่งราคาเท่านั้น ไม่ใช่การยืนยัน Fill จากโบรกเกอร์')}</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+              <div style="background: var(${document.body.classList.contains('dark-mode') ? '--glass-background-dark' : '--glass-background-light'}); padding: 15px; border-radius: 12px; border: 1px solid var(${document.body.classList.contains('dark-mode') ? '--border-color-dark' : '--border-color-light'});">
+                <i class="fas fa-sign-in-alt" style="color: var(${document.body.classList.contains('dark-mode') ? '--info-color-dark' : '--info-color-light'}); margin-right: 8px; font-size: 1.2rem;"></i>Entry: <strong style="color: var(${document.body.classList.contains('dark-mode') ? '--info-color-dark' : '--info-color-light'}); font-size: 1.3rem;">${countObj.Entry || 0}</strong> ครั้ง
+              </div>
+              <div style="background: var(${document.body.classList.contains('dark-mode') ? '--glass-background-dark' : '--glass-background-light'}); padding: 15px; border-radius: 12px; border: 1px solid var(${document.body.classList.contains('dark-mode') ? '--border-color-dark' : '--border-color-light'});">
+                <i class="fas fa-bullseye" style="color: var(${document.body.classList.contains('dark-mode') ? '--success-color-dark' : '--success-color-light'}); margin-right: 8px; font-size: 1.2rem;"></i>TP: <strong style="color: var(${document.body.classList.contains('dark-mode') ? '--success-color-dark' : '--success-color-light'}); font-size: 1.3rem;">${countObj.TP1 || 0}</strong> ครั้ง
+              </div>
+              <div style="background: var(${document.body.classList.contains('dark-mode') ? '--glass-background-dark' : '--glass-background-light'}); padding: 15px; border-radius: 12px; border: 1px solid var(${document.body.classList.contains('dark-mode') ? '--border-color-dark' : '--border-color-light'});">
+                <i class="fas fa-hand-paper" style="color: var(${document.body.classList.contains('dark-mode') ? '--danger-color-dark' : '--danger-color-light'}); margin-right: 8px; font-size: 1.2rem;"></i>SL: <strong style="color: var(${document.body.classList.contains('dark-mode') ? '--danger-color-dark' : '--danger-color-light'}); font-size: 1.3rem;">${countObj.SL || 0}</strong> ครั้ง
+              </div>
+            </div>
+            <div style="background: var(${document.body.classList.contains('dark-mode') ? '--glass-background-dark' : '--glass-background-light'}); padding: 15px; border-radius: 12px; border: 1px solid var(${document.body.classList.contains('dark-mode') ? '--border-color-dark' : '--border-color-light'}); text-align: center;">
+              <i class="fas fa-train" style="color: var(${document.body.classList.contains('dark-mode') ? '--warning-color-dark' : '--warning-color-light'}); margin-right: 8px; font-size: 1.2rem;"></i>ตกรถ: <strong style="color: var(${document.body.classList.contains('dark-mode') ? '--warning-color-dark' : '--warning-color-light'}); font-size: 1.3rem;">${countObj.ตกรถ || 0}</strong> ครั้ง
+            </div>
+            </div>
+          `.trim();
+
+          Swal.fire({
+            title: '<i class="fas fa-chart-pie"></i> สถิติแผนจำลอง',
+            html: html,
+            iconHtml: `<i class="fas fa-robot" style="font-size: 2em; color: var(${document.body.classList.contains('dark-mode') ? '--primary-color-dark' : '--primary-color-light'});"></i>`,
+            confirmButtonText: '<i class="fas fa-check"></i> ตกลง',
+            width: 'auto',
+            customClass: {
+              popup: 'swal-wide'
+            }
+          });
+        })
+        .withFailureHandler(function(error) {
+          statBtn.innerHTML = originalHTML; 
+          statBtn.disabled = false;
+          console.error("Stat Error:", error);
+          Swal.fire('ผิดพลาด!', 'ไม่สามารถโหลดข้อมูล Stat ได้: ' + error.message, 'error');
+        })
+        .getTriggeredCount(currentUser);
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('dark-mode');
+      const isDarkMode = document.body.classList.contains('dark-mode');
+      const themeToggleIcon = document.getElementById('themeToggleIcon');
+      if (isDarkMode) {
+        themeToggleIcon.classList.remove('fa-moon');
+        themeToggleIcon.classList.add('fa-sun');
+      } else {
+        themeToggleIcon.classList.remove('fa-sun');
+        themeToggleIcon.classList.add('fa-moon');
+      }
+      localStorage.setItem('darkMode', isDarkMode ? 'enabled' : 'disabled');
+      toggleSweetAlertTheme(isDarkMode);
+    }
+
+    function loadTheme() {
+      const darkMode = localStorage.getItem('darkMode');
+      const themeToggleIcon = document.getElementById('themeToggleIcon');
+      if (darkMode !== 'disabled') {
+        document.body.classList.add('dark-mode');
+        themeToggleIcon.classList.remove('fa-moon');
+        themeToggleIcon.classList.add('fa-sun');
+        toggleSweetAlertTheme(true);
+      } else {
+        document.body.classList.remove('dark-mode');
+        themeToggleIcon.classList.remove('fa-sun');
+        themeToggleIcon.classList.add('fa-moon');
+        toggleSweetAlertTheme(false);
+      }
+    }
+
+    function ensureLightThemeLoaded(lightThemeLink) {
+      if (!lightThemeLink) return;
+      if (!lightThemeLink.getAttribute('href')) {
+        const lightHref = lightThemeLink.getAttribute('data-href');
+        if (lightHref) lightThemeLink.setAttribute('href', lightHref);
+      }
+    }
+
+    function toggleSweetAlertTheme(isDarkMode) {
+      const darkThemeLink = document.getElementById('sweetalert2-theme');
+      const lightThemeLink = document.getElementById('sweetalert2-theme-light');
+      if (isDarkMode) {
+        darkThemeLink.disabled = false;
+        lightThemeLink.disabled = true;
+      } else {
+        ensureLightThemeLoaded(lightThemeLink);
+        darkThemeLink.disabled = true;
+        lightThemeLink.disabled = false;
+      }
+    }
+
+/* ฟังก์ชันแสดงราคาบนหน้า */
+function renderPriceChips(prices) {
+  const bar = document.getElementById('priceBar');
+  const status = document.getElementById('spacePriceStatus');
+  const selected = document.getElementById('symbol').value;
+  const labels = {'BTCUSD':'BTC/USD','XAUUSD':'XAU/USD','EURUSD':'EUR/USD','CLUSD':'CLUSD','GBPUSD':'GBP/USD','AUDUSD':'AUD/USD'};
+  bar.replaceChildren();
+  Object.keys(labels).forEach(function(key) {
+    if (!prices || prices[key] === undefined || prices[key] === null || prices[key] === '') return;
+    const value = Number(prices[key]);
+    if (!Number.isFinite(value)) return;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'price-chip';
+    chip.dataset.symbol = labels[key];
+    chip.classList.toggle('is-selected', selected === labels[key]);
+    chip.setAttribute('aria-pressed', String(selected === labels[key]));
+    chip.title = 'เลือก ' + labels[key] + ' สำหรับวิเคราะห์';
+    const name = document.createElement('span');
+    name.textContent = key === 'CLUSD' ? 'CL/USD' : labels[key];
+    const amount = document.createElement('b');
+    amount.textContent = value.toLocaleString('en-US', {maximumFractionDigits: 5});
+    chip.append(name, amount);
+    chip.addEventListener('click', function() {
+      const select = document.getElementById('symbol');
+      select.value = labels[key];
+      select.dispatchEvent(new Event('change', {bubbles:true}));
+      spaceNavigate('analysisSettings');
+    });
+    bar.appendChild(chip);
+  });
+  if (bar.children.length) {
+    status.textContent = 'โหลดล่าสุด ' + new Date().toLocaleTimeString('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'}) + ' ICT · แตะเพื่อเลือก';
+  } else {
+    status.textContent = 'ยังไม่มีข้อมูลราคา';
+    const empty = document.createElement('span');
+    empty.className = 'space-field-note'; empty.textContent = 'ไม่พบข้อมูลราคาล่าสุด'; bar.appendChild(empty);
+  }
+}
+
+function loadPriceBar() {
+  const refresh = document.getElementById('premiumRefreshPrices');
+  if(refresh.disabled) return;
+  refresh.disabled=true;
+  document.getElementById('spacePriceStatus').textContent='กำลังโหลดราคาล่าสุด';
+  google.script.run.withSuccessHandler(function(prices) {refresh.disabled=false; renderPriceChips(prices);})
+    .withFailureHandler(function() {
+      refresh.disabled=false;
+      document.getElementById('priceBar').replaceChildren();
+      document.getElementById('spacePriceStatus').textContent = 'โหลดไม่สำเร็จ · กดปุ่มโหลดราคาใหม่';
+    }).getCurrentPrices();
+}
+
+// ตรวจสอบการรองรับ emoji
+function checkEmojiSupport() {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  
+  // ทดสอบวาด emoji
+  ctx.fillText('🇺🇸', 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  
+  // ถ้าไม่รองรับ ให้ใช้ text fallback
+  const hasEmojiSupport = imageData.data.some(pixel => pixel !== 0);
+  
+  if (!hasEmojiSupport) {
+    // ใช้ text แทน emoji สำหรับเบราว์เซอร์ที่ไม่รองรับ
+    console.log('Emoji not fully supported, using text fallback');
+    addTextFallback();
+  }
+}
+
+/* ===== เปิด / โหลด SnD Forex ===== */
+function showSnDForex(){
+  const container = document.getElementById('sndIframeContainer');
+  const iframe     = document.getElementById('sndIframe');
+  const loader     = document.getElementById('sndLoader');
+
+  // ถ้ายังไม่เคยแสดง -> เปิดและตั้ง src
+  if (container.style.display === 'none'){
+    container.style.display = 'block';
+
+    // ตั้ง src เมื่อผู้ใช้คลิกครั้งแรกเท่านั้น
+    if (iframe.src === 'about:blank'){
+      iframe.src = iframe.dataset.src;
+      // เมื่อโหลดเสร็จให้ซ่อน loader
+      iframe.addEventListener('load', () => {
+        loader.classList.add('hide');          // ใช้คลาส hide เดิม
+      }, { once:true });
+    }
+  }
+
+  // เลื่อนหน้าจอแบบ smooth ไปยังเฟรม
+  container.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+/* ===== ฟังก์ชันเลื่อนและโหลด Dashboard ===== */
+function scrollToDashboard() {
+  const container = document.getElementById('dashboardContainer');
+  const iframe    = document.getElementById('dashboardIframe');
+  const loader    = container ? container.querySelector('.dashboard-loader') : null;
+
+  if (!container || !iframe) return;
+
+  /* ---------- เปิด container หากยังซ่อน ---------- */
+  if (container.style.display === 'none') {
+    container.style.display = 'block';
+
+    /* lazy-load – ตั้ง src ครั้งแรกเท่านั้น */
+    if (iframe.src === 'about:blank') {
+      iframe.src = iframe.dataset.src;
+      iframe.addEventListener('load', () => {
+        if (loader) loader.classList.add('hide');   // ซ่อนตัวโหลดเมื่อเสร็จ
+      }, { once: true });
+    }
+  }
+
+  /* ---------- เลื่อนหน้าจออย่างนุ่มนวล ---------- */
+  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function showGoogleSheet () {
+  const container = document.getElementById('gsIframeContainer');
+  const loader    = document.getElementById('gsLoader');
+  const iframe    = document.getElementById('gsIframe');
+
+  // โหลดครั้งแรก
+  if (iframe.getAttribute('src') === 'about:blank') {
+    iframe.src = iframe.dataset.src;
+    loader.classList.remove('hide');
+    iframe.onload = () => loader.classList.add('hide');
+  }
+
+  // toggle แสดง/ซ่อน
+  if (container.style.display === 'none') {
+    container.style.display = 'block';
+    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    container.style.display = 'none';
+  }
+}
+
+/* ===== QC Threshold dynamic style ===== */
+function styleQCSelect () {
+  const sel = document.getElementById('qcLevel');
+  if (!sel) return;
+
+  // ลบคลาสเก่า
+  sel.classList.remove('qc-relaxed', 'qc-standard', 'qc-strict');
+
+  const val = parseInt(sel.value, 10);   // 55-85
+
+  if (val < 65) {                // < 65 %  (55)
+    sel.classList.add('qc-relaxed');     // ฟ้า
+  } else if (val < 75) {         // 65-70 %
+    sel.classList.add('qc-standard');    // ม่วง
+  } else {                       // ≥ 75 %  (75-85)
+    sel.classList.add('qc-strict');      // แดง
+  }
+}
+
+/* เรียกเมื่อโหลดหน้า + เมื่อเปลี่ยนค่า */
+document.getElementById('qcLevel').addEventListener('change', styleQCSelect);
+
+// เพิ่ม text fallback
+function addTextFallback() {
+  const select = document.getElementById('symbol');
+  const options = select.querySelectorAll('option');
+  
+  options.forEach(option => {
+    const text = option.textContent;
+    // แทนที่ emoji ด้วย text ถ้าจำเป็น
+    if (text.includes('🥇')) {
+      option.textContent = text.replace('🥇', '[GOLD]');
+    }
+    if (text.includes('🛢️')) {
+      option.textContent = text.replace('🛢️', '[OIL]');
+    }
+    // เพิ่มการแทนที่อื่นๆ ตามต้องการ
+  });
+}
+
+// ===== Dynamic QC Toggle Logic =====
+const dynamicQcToggle = document.getElementById('dynamicQcToggle');
+const qcLevelSelect = document.getElementById('qcLevel');
+
+// ฟังก์ชันสำหรับอัปเดตสถานะของ dropdown
+function updateQcSelectState() {
+  if (!dynamicQcToggle || !qcLevelSelect) return;
+  if (dynamicQcToggle.checked) {
+    qcLevelSelect.disabled = true;
+    qcLevelSelect.style.opacity = '0.5';
+    qcLevelSelect.style.cursor = 'not-allowed';
+    // เรียกใช้ฟังก์ชัน style เพื่อให้สีจางลง
+    styleQCSelect(); 
+  } else {
+    qcLevelSelect.disabled = false;
+    qcLevelSelect.style.opacity = '1';
+    qcLevelSelect.style.cursor = 'pointer';
+    // เรียกใช้ฟังก์ชัน style เพื่อคืนสีปกติ
+    styleQCSelect();
+  }
+}
+
+if (dynamicQcToggle && qcLevelSelect) {
+  dynamicQcToggle.addEventListener('change', updateQcSelectState);
+}
+
+
+// Presentation-only navigation; all existing analysis and account handlers remain in place.
+function spaceNavigate(id) {
+  const target = document.getElementById(id);
+  if (!target) return;
+  document.querySelectorAll('.space-nav-item[data-section]').forEach(function(button) {
+    const active = button.dataset.section === id;
+    button.classList.toggle('is-active', active);
+    if (active) button.setAttribute('aria-current','location');
+    else button.removeAttribute('aria-current');
+  });
+  target.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+}
+document.getElementById('symbol').addEventListener('change',function() {
+  const value = this.value;
+  document.querySelectorAll('#priceBar button[data-symbol]').forEach(function(button) {
+    button.classList.toggle('is-selected',button.dataset.symbol === value);
+    button.setAttribute('aria-pressed',String(button.dataset.symbol === value));
+  });
+});
+
+  
+// Independent-workspace versions of the original navigation actions.
+function navigateToAI(){spaceNavigate('analysisSettings');}
+function navigateToFWT(){scrollToDashboard();}
+function showDeleteUserPanel(){const user=window.AF_SOLO_WORKSPACE.username;Swal.fire({title:'ล้างข้อมูลทดสอบ',text:'ล้างประวัติและแผนจำลองของผู้ทดสอบใน Sheet ใหม่อย่างถาวร',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันล้างข้อมูลทดสอบ',cancelButtonText:'ยกเลิก'}).then(r=>{if(!r.isConfirmed)return;google.script.run.withSuccessHandler(v=>{Swal.fire(v.success?'สำเร็จ':'ดำเนินการไม่ได้',v.message,v.success?'success':'error');if(v.success){analysisHistory=[];premiumPersistHistory();premiumResetResult();loadTriggers();}}).withFailureHandler(e=>Swal.fire('ผิดพลาด',e.message,'error')).afDeleteOwnData(user,'DELETE_MY_TEST_DATA');});}
+</script>

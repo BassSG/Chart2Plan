@@ -1,0 +1,254 @@
+<script>
+/* UI state only: one existing GAS request, no polling or automatic AI retries. */
+const PREMIUM_UI_VERSION = 'ALPHASENSE-PREMIUM-20261006-v1';
+const premiumRun = {busy:false, startedAt:0, timer:null, focus:null, request:0, previous:null};
+function premiumEscape(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function premiumGet(key, fallback) {try {return localStorage.getItem(key) ?? fallback;} catch (_) {return fallback;}}
+function premiumSet(key, value) {try {localStorage.setItem(key,value); return true;} catch (_) {return false;}}
+function premiumHistoryKey() {return 'allindy-fibo.history.v1.' + premiumGet('af.currentUser','anonymous');}
+function premiumFormatTime(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) + ' · ICT' : 'ประวัติการวิเคราะห์';
+}
+function premiumNumber(value) {if(value===null || value===undefined || value==='' || typeof value==='boolean') return null; const n=Number(value); return Number.isFinite(n) ? n : null;}
+function premiumOutcome(response) {
+  if (!response || typeof response !== 'object') return {kind:'error',title:'ได้รับคำตอบที่ไม่สมบูรณ์',label:'RESPONSE ERROR',description:'ยังยืนยันผลรอบนี้ไม่ได้ ตรวจสอบ Execution log ก่อนรันซ้ำ'};
+  const status = String(response.status || '');
+  if (status === 'NO_TRADE') return {kind:'neutral',title:'วิเคราะห์แล้ว · ยังไม่มีจุดเข้า',label:'NO TRADE',description:'รอบนี้ประมวลผลสำเร็จ แต่ไม่มีสัญญาณผ่านเงื่อนไข จึงไม่ได้วาง Pending ใหม่'};
+  if (status === 'SKIP_NEWS') return {kind:'neutral',title:'พักรอบในช่วงข่าวสำคัญ',label:'NEWS FILTER',description:'ระบบงดวิเคราะห์ตามเงื่อนไขข่าว ไม่ใช่ข้อผิดพลาดการเชื่อมต่อ'};
+  if (/^DATA_|^PRE_SAVE_/.test(status)) return {kind:'neutral',title:'หยุดรอบเพื่อความปลอดภัย',label:'SAFETY CHECK',description:'ข้อมูลหรือเงื่อนไขก่อนบันทึกยังไม่พร้อม ระบบไม่ได้ยืนยันสัญญาณใหม่'};
+  if (status === 'SAVE_FAILED_OR_PARTIAL') return {kind:'error',title:'ต้องตรวจสอบการบันทึกสัญญาณ',label:'CHECK RUN ID',description:'อาจบันทึกได้เพียงบางรายการ อย่ารันซ้ำทันที โปรดตรวจสอบ Run ID ในระบบก่อน'};
+  if (status === 'CLIENT_RPC_ERROR') return {kind:'error',title:'การเชื่อมต่อขัดข้อง',label:'CONNECTION ERROR',description:'ยังยืนยันผลรอบนี้ไม่ได้ ตรวจสอบ Execution log ก่อนรันซ้ำ'};
+  if (response.success === true) return {kind:'pass',title:'สัญญาณผ่านเงื่อนไข',label:'SIGNAL READY',description:'บันทึกแผนจำลองแล้ว · ระบบใหม่ยังไม่ส่ง EA/LINE และไม่ยืนยันการ Fill จริง'};
+  return {kind:'neutral',title:'ยังไม่มีสัญญาณที่ผ่านเกณฑ์',label:'POLICY CHECK',description:'ระบบยังไม่อนุญาตให้ใช้แผนนี้ ตรวจเหตุผลด้านล่างก่อนเริ่มรอบใหม่'};
+}
+function premiumNormalizeRejectedPreview(value, decisionStatus) {
+  if (!value || typeof value!=='object' || value.version!=='REJECTED-PLAN-20261006-v1'
+      || value.displayOnly!==true || value.liveEligible!==false) return null;
+  const text=(v,max=400)=>String(v==null?'':v).slice(0,max);
+  if (value.status==='UNAVAILABLE') return {version:value.version,status:'UNAVAILABLE',displayOnly:true,liveEligible:false,reasonCode:text(value.reasonCode,80)};
+  if (value.status!=='AVAILABLE' || !['NO_TRADE','ANALYSIS_REJECTED'].includes(decisionStatus)
+      || value.decisionStatus!==decisionStatus) return null;
+  const p=value.plan,entry=premiumNumber(p?.entry),sl=premiumNumber(p?.sl),spot=premiumNumber(value.referencePrice);
+  const targets=Array.isArray(p?.targets)?p.targets:[],tp=targets.find(t=>t.label==='TP1'),tp1=premiumNumber(tp?.price);
+  const score=premiumNumber(p?.qc?.score),threshold=premiumNumber(p?.qc?.threshold);
+  if ([entry,sl,spot,tp1].some(n=>n===null || n<=0) || score===null || threshold===null
+      || score<0 || score>100 || threshold<0 || threshold>100 || !Number.isFinite(Date.parse(value.capturedAt))) return null;
+  const valid=p.side==='buy' && p.type==='Buy Limit' && sl<entry && entry<spot && tp1>entry
+    || p.side==='sell' && p.type==='Sell Limit' && sl>entry && entry>spot && tp1<entry;
+  if (!valid || typeof p.qc.policyPassed!=='boolean' || p.qc.policyPassed && score<threshold) return null;
+  return {version:value.version,status:'AVAILABLE',displayOnly:true,liveEligible:false,decisionStatus,
+    runId:text(value.runId,100),capturedAt:value.capturedAt,referencePrice:spot,
+    evaluatedCount:Math.max(0,Math.min(8,premiumNumber(value.evaluatedCount)||0)),decisionReason:text(value.decisionReason,1800),
+    plan:{candidateId:text(p.candidateId,40),symbol:text(p.symbol,30),tradeType:text(p.tradeType,30),type:p.type,side:p.side,entry,sl,
+      targets:[{label:'TP1',price:tp1,rr:Math.abs(tp1-entry)/Math.abs(entry-sl)}],setupMode:text(p.setupMode,60),source:text(p.source,80),
+      qc:{score,threshold,policyPassed:p.qc.policyPassed,reasons:(Array.isArray(p.qc.reasons)?p.qc.reasons:[]).slice(0,12).map(r=>text(r))}}};
+}
+function premiumReviewReasonText(reason) {
+  const key=String(reason).split(':')[0].trim();
+  const labels={SETUP_ESSENTIAL_EVIDENCE_MISSING:'หลักฐานสำคัญของรูปแบบเข้าโซนยังไม่ครบ',
+    SETUP_EVIDENCE_TOO_WEAK:'หลักฐานของแผนยังอ่อนกว่าเกณฑ์ที่ระบบกำหนด',QC_SCORE_BELOW_THRESHOLD:'คะแนนคุณภาพยังต่ำกว่าเกณฑ์ของรอบนี้',
+    PENDING_NOT_APPLICABLE:'แผนนี้ไม่เข้าเงื่อนไขการตั้ง Pending ของรูปแบบที่ประเมิน',PENDING_DATA_INSUFFICIENT:'ข้อมูลโครงสร้างสำหรับแผน Pending ยังไม่ครบ',
+    PENDING_DIRECTION_OR_STRUCTURE_CONFLICT:'ทิศทางหรือโครงสร้างตลาดยังขัดแย้งกับแผน',PENDING_RANGE_NOT_ESTABLISHED:'กรอบราคา Sideways ยังมีหลักฐานไม่เพียงพอ',
+    PENDING_ENTRY_DISTANCE_INVALID:'ระยะ Entry จากราคาอ้างอิงไม่อยู่ในเกณฑ์',PENDING_ENTRY_NOT_AT_SUPPORTED_ZONE:'Entry ไม่อยู่ในโซนที่ข้อมูลตลาดรองรับ',
+    PENDING_BREAK_NOT_ACCEPTED:'ยังไม่มี Breakout ที่ผ่านเงื่อนไขยืนยัน',PENDING_CONTEXT_TOO_WEAK:'บริบทตลาดของแผน Pending ยังอ่อนเกินไป',
+    COUNTER_TREND_REQUIRES_CONFIRMED_REVERSAL:'แผนสวนเทรนด์ยังไม่มีหลักฐานกลับตัวที่ระบบยอมรับ'};
+  return labels[key] || '';
+}
+function premiumRenderRejectedPreview(item) {
+  if (item.outcome?.kind==='pass' || item.outcome?.kind==='error' || item.status==='SAVE_FAILED_OR_PARTIAL') return '';
+  const preview=premiumNormalizeRejectedPreview(item.rejectedPlanPreview,item.status),e=premiumEscape;
+  if (!preview) return '';
+  if (preview.status==='UNAVAILABLE') {
+    const messages={MARKET_DATA_UNAVAILABLE:'ข้อมูลตลาดไม่พร้อม จึงไม่มีแผนที่เชื่อถือได้ให้แสดง',
+      NEWS_FILTER_NO_ANALYSIS:'รอบนี้งดวิเคราะห์ช่วงข่าว จึงยังไม่มีแผนให้ศึกษา',
+      PRE_SAVE_SAFETY_REJECTION:'แผนไม่ผ่านการตรวจซ้ำก่อนบันทึก จึงไม่ใช้ราคาเดิมมาแสดงเป็นแผนที่ยังวางได้',
+      MODEL_DECISION_UNAVAILABLE:'คำตอบจากโมเดลไม่สมบูรณ์ ยังไม่มีแผนที่ผ่านการประเมินครบให้แสดง',
+      NO_FROZEN_SNAPSHOT:'ไม่มีข้อมูลแผนจากรอบนี้ จึงไม่สร้างราคาขึ้นใหม่',
+      NO_GEOMETRY_VALID_CANDIDATE:'ไม่มีแผนที่ Entry / SL / TP1 และพื้นที่เป้าหมายถูกต้อง จึงไม่ฝืนสร้างแผน',
+      PREVIEW_EVALUATION_FAILED:'ยังแสดงแผนศึกษาไม่ได้ ผลตัดสินจริงของรอบนี้คงเดิม'};
+    return `<aside class="premium-review-unavailable"><i class="fas fa-circle-info" aria-hidden="true"></i><span><strong>ไม่มีแผนตัวอย่างที่แสดงได้</strong>${e(messages[preview.reasonCode] || 'ข้อมูลแผนไม่ครบ จึงไม่สร้าง Entry / SL / TP ขึ้นเอง')}</span></aside>`;
+  }
+  const p=preview.plan,q=p.qc,target=p.targets[0];
+  const number=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:5});
+  const qcNote=q.policyPassed?'QC ของแผนนี้ผ่าน แต่ผลตัดสินจริงของรอบนี้ยังไม่อนุมัติแผน'
+    :q.score>=q.threshold?'คะแนนถึงเกณฑ์ แต่หลักฐานสำคัญยังไม่ผ่านนโยบาย':'QC ของแผนนี้ยังต่ำกว่าเกณฑ์';
+  return `<section class="premium-review" aria-label="แผนไม่ผ่าน จำลองเท่านั้น">
+    <div class="premium-review-kicker">FOR REVIEW ONLY <span>${e(p.candidateId)}</span></div>
+    <div class="premium-review-warning"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><strong>แผนไม่ผ่าน · จำลองเท่านั้น · ไม่ส่งเข้า EA</strong></div>
+    <h5>แผนใกล้ผ่านที่สุดจากตัวค้นหาโซน</h5><p class="premium-review-intro">แสดงเพื่อศึกษาและตรวจสอบ ไม่ใช่คำสั่งซื้อขายหรือแผนที่อนุมัติแล้ว</p>
+    <div class="premium-review-order">${e(p.type.toUpperCase())}<span>${e(p.symbol)} · ${e(p.setupMode)}</span></div>
+    <div class="premium-levels"><div class="premium-level"><span>ENTRY · ตัวอย่าง</span><strong>${e(number(p.entry))}</strong></div><div class="premium-level"><span>STOP LOSS · ตัวอย่าง</span><strong>${e(number(p.sl))}</strong></div></div>
+    <div class="premium-targets"><div class="premium-target-head"><span>เป้าหมายศึกษา</span><span>PRICE</span><span>RISK / REWARD</span></div><div class="premium-target-row"><span>TP</span><strong>${e(number(target.price))}</strong><small>RR ${e(target.rr.toFixed(2))}:1</small></div></div>
+    <p class="premium-review-caption">แผนเป้าหมายเดียว: Entry / SL / TP</p>
+    <div class="premium-review-qc"><span>QC ของแผนศึกษา</span><strong>${e(q.score.toFixed(1))}% <small>/ เกณฑ์ ${e(q.threshold)}%</small></strong></div>
+    <p class="premium-review-caption">${e(qcNote)} · คะแนน QC ไม่ใช่โอกาสชนะ</p>
+    <div class="premium-review-reasons"><strong>สิ่งที่ยังไม่ผ่าน</strong>${q.reasons.length?`<ul>${q.reasons.map(r=>{const label=premiumReviewReasonText(r);return `<li>${label?e(label)+`<small>${e(r)}</small>`:e(r)}</li>`;}).join('')}</ul>`:'<p>รอบนี้ไม่มีสัญญาณที่ได้รับอนุมัติ ดูเหตุผลจากผลตัดสินจริงด้านล่าง</p>'}</div>
+    <div class="premium-review-snapshot"><span>ราคาอ้างอิง ${e(number(preview.referencePrice))} · ${e(premiumFormatTime(preview.capturedAt))}</span><span>ที่มา ${e(p.source)} · เปรียบเทียบ ${e(preview.evaluatedCount)} แผน</span></div>
+    <p class="premium-review-caption">เป็นข้อมูล ณ ตอนสร้างแผนในรอบนี้ ไม่ใช่ราคาเรียลไทม์ ไม่ยืนยันการแตะราคา / Fill และไม่ได้บันทึกแผนนี้เป็นออเดอร์จริง</p>
+  </section>`;
+}
+function premiumRecordText(item) {
+  const raw=String(item.raw || ''),p=premiumNormalizeRejectedPreview(item.rejectedPlanPreview,item.status);
+  if (!p || p.status!=='AVAILABLE' || item.outcome?.kind==='pass' || item.outcome?.kind==='error') return raw;
+  const plan=p.plan;
+  return raw+'\n\n⚠️ แผนไม่ผ่าน · จำลองเท่านั้น · ไม่ส่งเข้า EA\nแผนจากตัวค้นหาโซน ไม่ใช่ออเดอร์ที่อนุมัติแล้ว\n'
+    +plan.symbol+' | '+plan.type+' | '+plan.candidateId+'\nEntry: '+plan.entry+'\nStopLoss: '+plan.sl+'\nTP1: '+plan.targets[0].price
+    +' (RR '+plan.targets[0].rr.toFixed(2)+':1)\nQC ของแผนศึกษา: '+plan.qc.score+' / เกณฑ์ '+plan.qc.threshold
+    +'\nQC policy: '+(plan.qc.policyPassed?'ผ่าน แต่ผลรอบนี้ยังไม่อนุมัติ':'ไม่ผ่าน')+'\nเหตุผล: '+plan.qc.reasons.join(' | ')
+    +'\nราคาอ้างอิง: '+p.referencePrice+' ณ '+premiumFormatTime(p.capturedAt)+'\nไม่ใช่ราคาเรียลไทม์ ไม่ยืนยันการ Fill';
+}
+function premiumLevelReview(raw) {
+  const keys=[['EntryAssessment','Entry'],['StopLossAssessment','SL'],['TakeProfitAssessment','TP']];
+  const rows=keys.map(([key,label])=>{
+    const value=(String(raw||'').match(new RegExp('^'+key+'\\s*:\\s*(.+)$','mi'))||[])[1];
+    return value?'<dt>'+label+'</dt><dd>'+premiumEscape(value.trim().slice(0,480))+'</dd>':'';
+  }).filter(Boolean);
+  return rows.length?'<details class="premium-detail premium-level-review"><summary>เหตุผลของ Entry / SL / TP</summary><dl>'+rows.join('')+'</dl></details>':'';
+}
+function premiumRenderRecord(item) {
+  const raw=String(item.raw || ''), opts=item.options || {}, outcome=item.outcome || premiumOutcome({success:false});
+  const e=premiumEscape;
+  const match=(re)=>{const m=raw.match(re); return m ? m[1].trim() : '—';};
+  const price=(tag)=>match(new RegExp('^'+tag+'\\s*:\\s*([\\d.,]+)','mi'));
+  const symbol=opts.symbol || match(/📈\s*(\S+)/);
+  const order=match(/^TypeOrder\s*:\s*(.+)$/mi);
+  const levels=(outcome.kind==='pass' && /^(buy|sell) limit$/i.test(order)) ? `
+    <div class="premium-order-label ${/sell/i.test(order)?'sell':''}">${e(order.toUpperCase())} <span>· ${e(opts.tradeType || '')}</span></div>
+    <div class="premium-levels"><div class="premium-level"><span>ENTRY PRICE</span><strong>${e(price('Entry'))}</strong></div><div class="premium-level"><span>STOP LOSS</span><strong>${e(price('StopLoss'))}</strong></div></div>
+    <div class="premium-targets"><div class="premium-target-head"><span>TAKE PROFIT</span><span>PRICE</span><span>RISK / REWARD</span></div>${['TP1'].map(tag=>{
+      const rr=match(new RegExp('^'+tag+'\\s*:.*?\\(RR\\s+([\\d.:]+)','mi'));
+      return `<div class="premium-target-row"><span>TP</span><strong>${e(price(tag))}</strong><small>${rr==='—'?'—':'RR '+e(rr)}</small></div>`;
+    }).join('')}</div>` : '';
+  const qc=item.qcResult || null;
+  const pct=qc && qc.percentage != null ? premiumNumber(qc.percentage) : null;
+  const threshold=qc && qc.threshold != null ? premiumNumber(qc.threshold) : null;
+  const quality=pct!==null && threshold!==null ? `<div class="premium-quality"><div class="premium-quality-label"><span>QUALITY CHECK</span><strong style="color:var(${pct>=threshold?'--premium-green':'--premium-gold'})">${e(pct.toFixed(1))}%</strong></div><div class="premium-quality-track"><span style="width:${Math.max(0,Math.min(100,pct))}%"></span><i style="left:${Math.max(0,Math.min(100,threshold))}%"></i></div><small>เกณฑ์รอบนี้ ${e(threshold)}% · ${e(opts.dynamicQc?'Dynamic QC':'Manual QC')} · คะแนนไม่ใช่โอกาสชนะ</small></div>` : '';
+  const cost=premiumNumber(item.cost);
+  const reason=raw.replace(/\nModel:.*$/s,'').replace(/^⏸️[^\n]+\n?/,'').trim();
+  const note=outcome.kind==='pass' ? outcome.description : reason || outcome.description;
+  return `<article class="ai-card premium-result" data-outcome="${e(outcome.kind)}">
+    <div class="premium-result-top"><span class="premium-outcome ${e(outcome.kind)}"><i class="fas ${outcome.kind==='pass'?'fa-check':outcome.kind==='error'?'fa-circle-exclamation':'fa-circle-pause'}" aria-hidden="true"></i>${e(outcome.label)}</span><time class="premium-result-time">${e(premiumFormatTime(item.createdAt))}</time></div>
+    <h4 class="premium-result-title">${outcome.kind==='pass'?e(symbol):e(outcome.title)}</h4>
+    <p class="premium-result-sub">${e(outcome.kind==='pass'?outcome.title:outcome.description)}</p>
+    ${levels}${quality}${premiumRenderRejectedPreview(item)}${premiumLevelReview(raw)}<div class="premium-note">${e(note)}</div>
+    <div class="premium-metrics"><span>ตลาด <strong>${e(symbol)}</strong></span>${cost!==null?`<span>ค่า AI <strong>$${e(cost.toFixed(6))}</strong></span>`:''}${item.runId?`<span>Run <strong>${e(item.runId)}</strong></span>`:''}</div>
+    <details class="premium-detail"><summary>รายละเอียดต้นฉบับจากระบบ</summary><pre>${e(raw)}</pre></details>
+  </article>`;
+}
+function premiumPersistHistory() {
+  analysisHistory=analysisHistory.slice(-50);
+  currentHistoryIndex=analysisHistory.length-1;
+  if (!premiumSet(premiumHistoryKey(),JSON.stringify(analysisHistory))) showNotification('แสดงผลได้ แต่พื้นที่จัดเก็บประวัติในอุปกรณ์เต็ม','warning');
+}
+function premiumHistoryCount() {
+  const count=document.getElementById('premiumHistoryCount');
+  if (count) count.textContent=analysisHistory.length ? (currentHistoryIndex+1)+' / '+analysisHistory.length : '';
+}
+function premiumDisplayRecord(item) {
+  document.getElementById('result').innerHTML=premiumRenderRecord(item);
+  document.getElementById('modelName').textContent=item.model || '—';
+  document.getElementById('copyBtn').disabled=false;
+  premiumHistoryCount();
+}
+function premiumResetResult() {
+  document.getElementById('result').innerHTML='<div class="space-empty-state"><div class="space-empty-radar" aria-hidden="true"><i class="fas fa-chart-line"></i></div><h4>มุมมองถัดไป เริ่มที่นี่</h4><p>เลือกตลาดและโมเดลที่ต้องการ<br>ผลวิเคราะห์และแผนการเข้าโซนจะแสดงในพื้นที่นี้</p><div class="space-empty-tags"><span>MULTI-TIMEFRAME</span><span>PENDING LIMIT</span><span>QUALITY CHECK</span></div></div>';
+  document.getElementById('modelName').textContent='—';
+  document.getElementById('copyBtn').disabled=true;
+  premiumHistoryCount();
+}
+function premiumElapsed() {
+  const seconds=Math.max(0,Math.floor((Date.now()-premiumRun.startedAt)/1000));
+  return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');
+}
+function premiumTick() {
+  const elapsed=premiumElapsed();
+  document.getElementById('premiumElapsed').textContent=elapsed;
+  document.getElementById('premiumInlineElapsed').textContent='ใช้เวลา '+elapsed+' · รอคำตอบจากเซิร์ฟเวอร์';
+  const slow=Date.now()-premiumRun.startedAt>90000;
+  document.getElementById('aiStatusText').textContent=slow?'รอบนี้ใช้เวลานานกว่าปกติ ยังรอคำตอบจากเซิร์ฟเวอร์อยู่':'ส่งคำขอแล้ว กำลังรอผลวิเคราะห์จากเซิร์ฟเวอร์';
+  document.getElementById('premiumWaitHint').textContent=slow?'ยังไม่ทราบว่ารอบนี้สิ้นสุดหรือไม่ อย่ารีเฟรชหรือส่งคำขอซ้ำ สามารถพับหน้ารอเพื่อดูข้อมูลอื่นได้':'แสดงเวลารอจริง · ความคืบหน้าแต่ละขั้นไม่ได้ส่งกลับมาจากเซิร์ฟเวอร์ จึงใช้สถานะรอแทนเปอร์เซ็นต์';
+}
+function premiumOpenRunDialog() {
+  if (!premiumRun.busy) return;
+  premiumRun.focus=document.activeElement;
+  document.getElementById('aiAnalysisModal').classList.add('show');
+  document.querySelector('.cosmic-shell').inert=true;
+  document.getElementById('premiumMinimize').focus();
+}
+function premiumCloseRunDialog() {
+  document.getElementById('aiAnalysisModal').classList.remove('show');
+  document.querySelector('.cosmic-shell').inert=false;
+  const focus=premiumRun.focus;
+  if (focus && focus.isConnected && !focus.disabled) focus.focus();
+  else if(premiumRun.busy) document.getElementById('premiumShowRun').focus();
+}
+function premiumStartRun(options) {
+  premiumRun.busy=true; premiumRun.startedAt=Date.now(); premiumRun.request++;
+  premiumRun.previous={html:document.getElementById('result').innerHTML, model:document.getElementById('modelName').textContent};
+  document.getElementById('premiumRunBanner').hidden=false;
+  document.getElementById('premiumRunSymbol').textContent=options.symbol+' · กำลังวิเคราะห์';
+  document.getElementById('premiumDialogSymbol').textContent=options.symbol;
+  document.getElementById('premiumDialogModel').textContent=options.model;
+  document.getElementById('analyzeBtn').disabled=true;
+  document.getElementById('analyzeBtn').querySelector('span').textContent='กำลังวิเคราะห์…';
+  document.getElementById('copyBtn').disabled=true;
+  document.getElementById('result').setAttribute('aria-busy','true');
+  document.querySelectorAll('button[onclick="showPreviousResult()"],button[onclick="showNextResult()"]').forEach(b=>b.disabled=true);
+  if(premiumRun.timer) clearInterval(premiumRun.timer);
+  premiumTick(); premiumRun.timer=setInterval(premiumTick,1000);
+  premiumOpenRunDialog();
+  return premiumRun.request;
+}
+function premiumFinishRun() {
+  premiumRun.busy=false;
+  if(premiumRun.timer) clearInterval(premiumRun.timer);
+  premiumRun.timer=null;
+  document.getElementById('premiumRunBanner').hidden=true;
+  document.getElementById('result').setAttribute('aria-busy','false');
+  document.getElementById('analyzeBtn').disabled=false;
+  premiumCloseRunDialog();
+  document.getElementById('analyzeBtn').querySelector('span').textContent='เริ่มวิเคราะห์ตลาด';
+  updateNavButtons();
+}
+function premiumRecordResponse(response, options) {
+  const outcome=premiumOutcome(response);
+  const raw=response && typeof response.message==='string' ? response.message : 'ไม่ได้รับข้อความผลวิเคราะห์ที่สมบูรณ์';
+  const costMatch=raw.match(/Cost(?:\s*\(USD\))?\s*[:$]\s*([\d.]+)/i);
+  const cost=response && response.cost!=null ? premiumNumber(response.cost) : costMatch ? premiumNumber(costMatch[1]) : null;
+  const status=String(response?.status || '');
+  const item={raw,model:options.model,options,outcome,status,qcResult:response?.qcResult || null,cost,runId:response?.runId || '',
+    rejectedPlanPreview:response?.success===true?null:premiumNormalizeRejectedPreview(response?.rejectedPlanPreview,status),createdAt:new Date().toISOString()};
+  analysisHistory.push(item); premiumPersistHistory(); premiumDisplayRecord(item); updateNavButtons();
+  if(typeof window.afResearchShowResponse==='function')window.afResearchShowResponse(response);
+  showNotification(outcome.kind==='pass'?'วิเคราะห์เสร็จ · สัญญาณผ่านเงื่อนไข':outcome.kind==='error'?'รอบนี้ต้องตรวจสอบรายละเอียด':'วิเคราะห์เสร็จ · ยังไม่มีสัญญาณใหม่',outcome.kind==='error'?'error':'success');
+  if(outcome.kind==='pass' || response?.status==='SAVE_FAILED_OR_PARTIAL') loadTriggers();
+  scrollToResult();
+}
+function premiumRunFailure(error, options) {
+  premiumRecordResponse({status:'CLIENT_RPC_ERROR',message:'การเชื่อมต่อกับเซิร์ฟเวอร์ขัดข้อง\n'+String(error?.message || 'ไม่ทราบสาเหตุ')+'\nยังยืนยันไม่ได้ว่าเซิร์ฟเวอร์ทำงานจบหรือไม่ โปรดตรวจ Execution log ก่อนรันซ้ำ'},options);
+}
+function premiumUpdateClock() {
+  const now=new Date();
+  document.getElementById('premiumClock').textContent=now.toLocaleTimeString('en-GB',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('premiumDate').textContent=now.toLocaleDateString('th-TH',{timeZone:'Asia/Bangkok',day:'numeric',month:'short',year:'numeric'});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  premiumUpdateClock(); setInterval(premiumUpdateClock,30000);
+  loadRememberedCredentials();
+  ['loginUsername','loginPassword'].forEach(id=>document.getElementById(id).addEventListener('keydown',event=>{
+    if(event.key==='Enter' && !document.getElementById('loginBtn').disabled) {event.preventDefault(); handleLogin();}
+  }));
+  document.getElementById('aiAnalysisModal').addEventListener('keydown',event=>{
+    if(event.key==='Escape') {event.preventDefault(); premiumCloseRunDialog();}
+    if(event.key==='Tab') {event.preventDefault(); document.getElementById('premiumMinimize').focus();}
+  });
+  const toggle=document.getElementById('toggleTriggerBtn');
+  toggle.setAttribute('aria-expanded','false'); toggle.setAttribute('aria-controls','triggerTableContainer');
+  new MutationObserver(()=>toggle.setAttribute('aria-expanded',String(document.getElementById('triggerTableContainer').classList.contains('show')))).observe(document.getElementById('triggerTableContainer'),{attributes:true,attributeFilter:['class']});
+  // Only readiness, never credentials, analysis data or API keys, is sent to the wrapper.
+  // Independent GAS app: no messages to the production wrapper.
+});
+</script>

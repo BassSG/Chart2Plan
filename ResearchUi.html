@@ -1,0 +1,98 @@
+<style>
+.af-research{margin:0 0 24px;padding:22px;border:1px solid #344553;border-radius:14px;background:#131e2b;color:#edf2f7;scroll-margin-top:24px}
+.af-research h3{margin:0 0 8px;font-size:1.15rem}.af-research p{color:#b9c8d8;line-height:1.7;font-size:.88rem;margin:8px 0}
+.af-research-actions{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0}
+.af-research button{font:inherit;font-size:.85rem;padding:10px 14px;border:1px solid #53738e;border-radius:8px;background:#20354a;color:#f5f8fb;cursor:pointer;min-height:44px}
+.af-research button:focus-visible{outline:3px solid #7bd7d1;outline-offset:3px}.af-research button:disabled{opacity:.55;cursor:wait}
+.af-research-output{white-space:pre-wrap;font-size:.86rem;line-height:1.65;color:#d7e5ef;overflow-wrap:anywhere}
+.af-research-metrics{display:flex;flex-wrap:wrap;gap:18px;margin:15px 0}.af-research-metrics span{font-size:.82rem;color:#afc3d5}.af-research-metrics strong{display:block;font-size:1.5rem;color:#ebf5ff;margin-top:3px}
+.af-research-scroll{overflow:auto;max-height:430px;margin-top:12px}.af-research table{border-collapse:collapse;width:100%;font-size:.8rem;text-align:left;min-width:680px}
+.af-research th,.af-research td{padding:10px;border-bottom:1px solid #314357;vertical-align:top}.af-research th{background:#1c2d40;position:sticky;top:0}
+.af-research small{color:#aac0d2}.af-research details{margin-top:16px}.af-research summary{cursor:pointer;min-height:30px}.af-research pre{white-space:pre-wrap;max-height:330px;overflow:auto;font-size:.77rem;overflow-wrap:anywhere}
+@media(max-width:600px){.af-research{padding:16px}.af-research-actions button{flex:1 1 45%}}
+</style>
+<script>
+(function(){
+ 'use strict';
+ var lastResult=null,busy=false;
+ var esc=function(v){return String(v==null?'—':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+ var user=function(){return window.AF_SOLO_WORKSPACE&&window.AF_SOLO_WORKSPACE.username;};
+ var number=function(v){return typeof v==='number'&&Number.isFinite(v)?String(Math.round(v*10000)/10000):'—';};
+ function status(text){document.getElementById('afResearchStatus').textContent=text;}
+ function lock(value){busy=value;document.querySelectorAll('#afResearch button[data-action]').forEach(function(b){b.disabled=value;});}
+ function fail(){lock(false);status('ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ ยังยืนยันไม่ได้ว่าบันทึกรอบนี้ครบหรือไม่ ตรวจ Run ID ใน Sheet ก่อนรันซ้ำ');}
+ function summarize(v){
+  var a=v.audit||{},d=v.diagnostics||a.diagnostics||{},cs=a.candidates||v.candidates||[];
+  var eligible=cs.filter(function(c){return c.accepted===true||c.eligible===true||c.decision==='ELIGIBLE';}).length;
+  return {audit:a,diagnostics:d,candidates:cs,eligible:eligible};
+ }
+ function render(v){
+  lastResult=v;var x=summarize(v);
+  status([v.status||v.decision||x.audit.reasonCode||'ผลตรวจ',v.message||v.reason||'',(v.runId||x.audit.runId)?'Run ID: '+(v.runId||x.audit.runId):''].filter(Boolean).join('\n'));
+  document.getElementById('afResearchMetrics').innerHTML='<span>แผนที่ประเมิน<strong>'+esc(x.candidates.length)+'</strong></span>'+
+   '<span>ผ่านกฎ / รอ AI เลือก<strong>'+esc(x.diagnostics.eligibleCount==null?x.eligible:x.diagnostics.eligibleCount)+'</strong></span>'+
+   '<span>เกณฑ์ความถี่<strong>1–5 / วัน</strong></span><span>การยืนยันผล<strong>PAPER เท่านั้น</strong></span>';
+  var rows=x.candidates.slice(0,60).map(function(c){
+   var p=c.plan||c.geometry||c,g=c.gates||c.gateCodes||c.checks||c.failures||c.reasons||[];
+   var failures=Array.isArray(g)?g.filter(function(q){return typeof q==='string'||q.passed===false||q.pass===false||q.ok===false;}):[g];
+   var reason=failures.map(function(q){return typeof q==='string'?q:String(q.code||q.reason||q.name||JSON.stringify(q));}).join(' · ');
+   return '<tr><td>'+esc(c.id||c.candidateId||'—')+'</td><td>'+esc(p.side===1?'BUY':p.side===-1?'SELL':p.side||'—')+'</td>'+
+    '<td>'+number(p.entry)+'</td><td>'+number(p.stop==null?p.sl:p.stop)+'</td><td>'+number(p.target==null?p.tp:p.target)+'</td>'+
+    '<td>'+number(p.netR)+'</td><td>'+esc(reason||(c.accepted||c.eligible?'ผ่านกฎแผนจำลอง':'ดูรายละเอียด JSON'))+'</td></tr>';
+  }).join('');
+  document.getElementById('afResearchCandidates').innerHTML=rows?'<p>แสดง '+Math.min(60,x.candidates.length)+' จาก '+x.candidates.length+' แผน · ราคาไม่ใช่คำสั่งเทรดจริง</p><div class="af-research-scroll"><table><thead><tr><th>Candidate</th><th>ฝั่ง</th><th>Entry</th><th>SL</th><th>TP</th><th>Net R</th><th>เหตุผลที่ไม่ผ่าน</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>ยังไม่มีคู่หลักฐานให้สร้างแผน หรือข้อมูลรอบนี้ไม่พร้อม ไม่ใช่ผลแพ้/ชนะของกลยุทธ์</p>';
+  document.getElementById('afResearchJson').textContent=JSON.stringify({status:v.status,runId:v.runId,diagnostics:x.diagnostics,candidates:x.candidates,coverage:a.coverage||a.snapshot&&a.snapshot.coverage},null,2);
+ }
+ function renderDashboard(v){
+  lastResult=v;var c=v.counts||v.summary||v,t=v.today||{};
+  var val=function(k){return c[k]==null?'—':c[k];};
+  document.getElementById('afResearchPaper').innerHTML='<div class="af-research-metrics">'+[
+   ['Entry จำลอง',val('Entry')],['TP จำลอง',val('TP1')],['SL จำลอง',val('SL')],['ต้องตรวจลำดับแท่ง',c.Review==null?c.REVIEW==null?'—':c.REVIEW:c.Review],
+   ['Entry วันนี้ (กรุงเทพฯ)',t.entries==null?'—':t.entries]
+  ].map(function(x){return '<span>'+esc(x[0])+'<strong>'+esc(x[1])+'</strong></span>';}).join('')+'</div>';
+  document.getElementById('afResearchPaperDetail').textContent=JSON.stringify(v,null,2);
+  status(v.message||'โหลดข้อมูลบันทึกแล้ว · ผลจากแท่ง Bid + สมมติฐาน spread ไม่ใช่ Fill จากโบรกเกอร์');
+ }
+ function rpc(action){
+  if(busy)return;lock(true);status('กำลังตรวจข้อมูลและบันทึกผล… ไม่มีการเรียก AI สำหรับปุ่มนี้');
+  var done=function(v){lock(false);if(action==='inspect')render(v);else renderDashboard(v);};
+  var run=google.script.run.withSuccessHandler(done).withFailureHandler(fail);
+  if(action==='inspect'){
+   var tf=document.getElementById('tradeType').value,auto=document.getElementById('dynamicQcToggle').checked;
+   run.afResearchDiagnostics(tf,'XAUUSD',auto?null:Number(document.getElementById('qcLevel').value));
+  }else if(action==='refresh')run.afRefreshPaper(user());
+  else run.afResearchDashboard(user());
+ }
+ function mount(){
+  var grid=document.querySelector('.space-analysis-grid');if(!grid)return;
+  var section=document.createElement('section');section.id='afResearch';section.className='af-research';section.setAttribute('aria-labelledby','afResearchTitle');
+  section.innerHTML='<h3 id="afResearchTitle">ห้องพิสูจน์แผน · All Indy × EBW-Fibo</h3>'+
+   '<p>คำนวณ Entry / SL / TP จากหลักฐานก่อนให้ AI เลือกและอธิบาย คะแนน QC เป็นคะแนนหลักฐาน ไม่ใช่โอกาสชนะ เป้าหมาย 1–5 Entry ต่อวันใช้วัดผล ไม่บังคับสร้างไม้ให้ครบ</p>'+
+   '<div class="af-research-actions"><button type="button" data-action="inspect">ตรวจเงื่อนไข · ไม่เรียก AI</button><button type="button" data-action="refresh">อัปเดตผลแผนจำลอง</button><button type="button" data-action="dashboard">โหลดประวัติจากเซิร์ฟเวอร์</button><button type="button" id="afResearchExport">ดาวน์โหลดผลตรวจ JSON</button><button type="button" id="afResearchSheet">เปิด Logs ใน Sheet</button></div>'+
+   '<div id="afResearchStatus" class="af-research-output" role="status" aria-live="polite">ยังไม่ได้ตรวจในรอบนี้ · กดตรวจเงื่อนไขได้โดยไม่มีค่าเรียกโมเดล</div>'+
+   '<div id="afResearchMetrics" class="af-research-metrics"></div><div id="afResearchCandidates"></div>'+
+   '<details><summary>หลักฐานและเหตุผลราย Candidate</summary><pre id="afResearchJson"></pre></details>'+
+   '<h4>ผลแผนจำลองที่บันทึกไว้</h4><div id="afResearchPaper"><p>ยังไม่ได้โหลดข้อมูล ไม่แสดง 0 แทนข้อมูลที่ยังไม่ทราบ</p></div>'+
+   '<p>แผนจำลองเริ่มต้นนาทีเต็มถัดไป ไม่ย้อนหลังนับนาทีที่สร้างแผน · อัปเดตเฉพาะเมื่อกดปุ่ม ไม่ได้ติดตามอยู่เบื้องหลัง หากประวัติขาดช่วงหรือแท่งเดียวแตะหลายระดับ จะขึ้น REVIEW และไม่นับเป็น TP แผนที่เข้าแล้วจะล็อก Entry / SL / TP</p>'+
+   '<details><summary>ประวัติรอบตรวจและสถานะแผนบนเซิร์ฟเวอร์</summary><pre id="afResearchPaperDetail"></pre></details>';
+  grid.parentNode.insertBefore(section,grid);
+  Array.from(document.getElementById('symbol').options).forEach(function(o){if(o.value.replace('/','')!=='XAUUSD'){o.disabled=true;o.textContent+=' · ยังไม่มีข้อมูลยืนยัน';}});
+  Array.from(document.getElementById('qcLevel').options).forEach(function(o){o.textContent=o.textContent.replace('%',' คะแนน');});
+  section.querySelectorAll('button[data-action]').forEach(function(b){b.addEventListener('click',function(){rpc(b.dataset.action);});});
+  document.getElementById('afResearchExport').addEventListener('click',function(){
+   if(!lastResult){status('ยังไม่มีผลตรวจสำหรับดาวน์โหลด');return;}
+   var blob=new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download='chart2plan-research-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  });
+  document.getElementById('afResearchSheet').addEventListener('click',function(){
+   google.script.run.withSuccessHandler(function(url){
+    if(!/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+/.test(url)){status('ไม่สามารถยืนยันลิงก์ Sheet ได้');return;}
+    var a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='เปิด Google Sheet ที่เก็บ Logs';
+    var box=document.getElementById('afResearchStatus');box.textContent='';box.appendChild(a);
+   }).withFailureHandler(fail).getWorkspaceSheetUrl();
+  });
+ }
+ window.afResearchShowResponse=function(v){if(document.getElementById('afResearchStatus'))render(v);};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
+})();
+</script>

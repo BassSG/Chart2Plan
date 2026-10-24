@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <title>Allindy + Fibo | Chart2Plan</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="https://basssg.github.io/AlphaSense-Analysis-Webapp/assets/brand/chart2plan-favicon-32-v1.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="dns-prefetch" href="https://script.google.com">
+  <link rel="preconnect" href="https://script.google.com" crossorigin>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@5/dark.css" rel="stylesheet" id="sweetalert2-theme">
+  <link href="" data-href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-light@5/light.css" rel="stylesheet" id="sweetalert2-theme-light" disabled>
+
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>
+
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style id="orbital-workspace-theme">
+/* Chart2Plan workspace. Scoped presentation layer; existing app contracts are retained. */
+body.cosmic-app {
+  --space-bg:#edf2fb; --space-panel:#ffffff; --space-panel-soft:#f5f7fd;
+  --space-input:#f4f6fc; --space-border:#dbe3f0; --space-text:#1c2943;
+  --space-muted:#5c6b86; --space-faint:#687892; --space-cyan:#087b93;
+  --space-purple:#7057df; --space-nav:#f8faff; --space-hover:#e9effb;
+  --font-family-sans:'Inter','Noto Sans Thai',sans-serif;
+  --background-light:var(--space-bg); --card-background-light:var(--space-panel);
+  --input-background-light:var(--space-input); --text-primary-light:var(--space-text);
+  --text-secondary-light:var(--space-muted); --text-tertiary-light:var(--space-muted);
+  --border-color-light:var(--space-border); --primary-color-light:var(--space-purple);
+  --hover-background-light:var(--space-hover);
+  margin:0; padding:0; min-height:100vh; font:14px/1.65 var(--font-family-sans);
+  color:var(--space-text); background:var(--space-bg) !important; color-scheme:light;
+}
+body.cosmic-app.dark-mode {
+  --space-bg:#080c17; --space-panel:#111827; --space-panel-soft:#151e30;
+  --space-input:#0c1220; --space-border:#263149; --space-text:#edf2ff;
+  --space-muted:#a2aec7; --space-faint:#8898b6; --space-cyan:#66d9ec;
+  --space-purple:#b09aff; --space-nav:#0c111e; --space-hover:#1a263c;
+  --background-dark:var(--space-bg); --card-background-dark:var(--space-panel);
+  --input-background-dark:var(--space-input); --text-primary-dark:var(--space-text);
+  --text-secondary-dark:var(--space-muted); --text-tertiary-dark:var(--space-muted);
+  --border-color-dark:var(--space-border); --primary-color-dark:var(--space-purple);
+  --hover-background-dark:var(--space-hover); color-scheme:dark;
+}
+body.cosmic-app::before,body.cosmic-app::after {display:none !important;}
+body.cosmic-app *,body.cosmic-app *::before,body.cosmic-app *::after {box-sizing:border-box;}
+body.cosmic-app h1,body.cosmic-app h2,body.cosmic-app h3 {font-family:var(--font-family-sans);}
+body.cosmic-app button {font-family:var(--font-family-sans); cursor:pointer;}
+body.cosmic-app button:disabled {cursor:not-allowed; opacity:.42 !important; transform:none !important; box-shadow:none !important;}
+body.cosmic-app button:focus-visible,body.cosmic-app a:focus-visible,
+body.cosmic-app summary:focus-visible {outline:3px solid var(--space-cyan) !important; outline-offset:4px;}
+body.cosmic-app .reveal-on-scroll {opacity:1 !important; transform:none !important;}
+body.cosmic-app ::-webkit-scrollbar {width:7px; height:5px;}
+body.cosmic-app ::-webkit-scrollbar-track {background:var(--space-nav);}
+body.cosmic-app ::-webkit-scrollbar-thumb {background:var(--space-border); border-radius:8px;}
+html::-webkit-scrollbar {width:7px; height:5px;}
+html::-webkit-scrollbar-track {background:#111827;}
+html::-webkit-scrollbar-thumb {background:#34405a; border:0; border-radius:8px;}
+.space-sr-only {position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
+body.cosmic-app .side-bubble {display:none;}
+.cosmic-shell {width:100%; min-width:0;}
+.space-sidebar {position:fixed; inset:0 auto 0 0; width:220px; z-index:30; padding:30px 18px 24px; background:var(--space-nav); border-right:1px solid var(--space-border); display:flex; flex-direction:column;}
+.space-brand {display:flex; align-items:center; gap:12px; padding:0 9px 33px; color:var(--space-text); text-decoration:none;}
+.space-brand strong {display:block; font-size:18px; font-weight:700; letter-spacing:-.6px; line-height:1.3;}
+.space-brand small {display:block; margin-top:5px; color:var(--space-faint); font-size:9px; font-weight:600; letter-spacing:2.2px;}
+.orbit-mark {position:relative; display:inline-block; flex:0 0 auto; width:35px; height:35px; border:1px solid #a897ff; border-radius:50%; transform:rotate(-35deg);}
+.orbit-mark::before {content:''; position:absolute; inset:9px -6px; border:2px solid #75d9f5; border-radius:50%;}
+.orbit-mark::after {content:''; position:absolute; inset:10px; border-radius:50%; background:#b09aff; box-shadow:0 0 18px #957bff80;}
+.space-nav-label {padding:0 13px; margin:12px 0 12px; color:var(--space-faint); font-size:10px; font-weight:600; letter-spacing:1.6px;}
+.space-navigation {display:flex; flex-direction:column; gap:6px;}
+body.cosmic-app .space-nav-item {display:flex; align-items:center; gap:12px; width:100%; border:1px solid transparent; border-radius:9px; padding:12px 14px; color:var(--space-muted); background:transparent; font-size:13px; font-weight:500; text-align:left; text-decoration:none; box-shadow:none; transition:background .2s,color .2s;}
+body.cosmic-app .space-nav-item i {width:17px; font-size:15px; text-align:center;}
+body.cosmic-app .space-nav-item:hover {color:var(--space-text); background:var(--space-hover); transform:none;}
+body.cosmic-app .space-nav-item.is-active {color:var(--space-cyan); border-color:color-mix(in srgb,var(--space-cyan) 22%,transparent); background:color-mix(in srgb,var(--space-cyan) 9%,transparent);}
+.space-nav-divider {height:1px; background:var(--space-border); margin:21px 12px 17px;}
+.space-sidebar-footer {margin-top:auto; padding:25px 12px 0; color:var(--space-faint); font-size:11px;}
+.space-sidebar-footer .space-caption {margin:8px 0 5px; color:var(--space-muted); font-size:12px; letter-spacing:0;}
+.space-sidebar-footer .orbit-line {width:33px; height:1px; background:var(--space-purple); margin-bottom:16px;}
+.space-workspace {margin-left:220px; padding:0 34px 28px; max-width:1760px;}
+body.cosmic-app .user-header {min-height:88px; display:flex; align-items:center; justify-content:space-between; gap:18px; padding:20px 0 !important; margin:0 !important; background:none !important; border:0 !important; border-bottom:1px solid var(--space-border) !important; border-radius:0 !important; box-shadow:none !important;}
+body.cosmic-app .user-header::before,body.cosmic-app .user-header::after {display:none;}
+.space-breadcrumb {font-size:10px; color:var(--space-faint); letter-spacing:1.8px; margin-bottom:4px;}
+body.cosmic-app .welcome-text {font-size:13px !important; color:var(--space-muted) !important; background:none !important; -webkit-text-fill-color:currentColor !important; font-weight:400 !important;}
+body.cosmic-app .user-actions {display:flex; width:auto !important; gap:9px !important; flex-shrink:0;}
+body.cosmic-app .space-icon-button,body.cosmic-app .theme-toggle-btn,body.cosmic-app .logout-btn {display:inline-flex; align-items:center; justify-content:center; width:39px; height:39px; min-height:39px; min-width:39px; padding:0 !important; border:1px solid var(--space-border) !important; border-radius:10px !important; background:var(--space-panel) !important; color:var(--space-muted) !important; box-shadow:none !important; font-size:14px !important;}
+body.cosmic-app .theme-toggle-btn:hover,body.cosmic-app .logout-btn:hover {transform:none !important; color:var(--space-cyan) !important; background:var(--space-hover) !important;}
+.mission-hero {position:relative; display:flex; align-items:center; min-height:216px; padding:30px 0; overflow:hidden; isolation:isolate;}
+.mission-hero-copy {position:relative; z-index:2; max-width:70%;}
+.space-eyebrow {display:flex; align-items:center; gap:8px; color:var(--space-cyan); font-size:10px; font-weight:600; letter-spacing:2px;}
+.space-eyebrow::before {content:''; display:block; width:17px; height:1px; background:currentColor;}
+.mission-hero h1 {margin:10px 0 8px; font-size:clamp(27px,2.7vw,41px); font-weight:600; line-height:1.4; letter-spacing:-1.3px; color:var(--space-text);}
+.mission-hero h1 span {color:var(--space-purple);}
+.mission-hero p {font-size:13px; color:var(--space-muted);}
+.mission-meta {display:flex; align-items:center; gap:9px; margin-top:17px; font-size:10px; font-weight:500; color:var(--space-faint); letter-spacing:1.2px;}
+.mission-meta b {color:var(--space-purple); font-size:11px;}
+.space-orbit-art {position:absolute; width:315px; height:250px; top:-12px; right:8px; pointer-events:none; z-index:0;}
+.space-orbit-art::before {content:''; position:absolute; inset:-20px; background:radial-gradient(ellipse,#725fe92b,transparent 68%);}
+.orbital-path {position:absolute; width:276px; height:97px; top:87px; left:18px; border:1px solid #849fff42; border-radius:50%; transform:rotate(-27deg);}
+.orbital-path.second {width:296px; height:160px; left:9px; top:54px; transform:rotate(32deg); border-color:#79bfd526;}
+.orbital-path::after {content:''; width:6px; height:6px; border-radius:50%; background:#76dfef; box-shadow:0 0 12px #65dfeb; position:absolute; right:25px; top:16px;}
+.orbital-planet {position:absolute; width:137px; height:137px; left:90px; top:58px; border-radius:50%; transform:rotate(-23deg); background:radial-gradient(circle at 29% 24%,#d1c6ff 0%,#8e8bce 12%,#5b6394 29%,#303654 53%,#131a2c 75%); box-shadow:inset 6px 5px 11px #d5c9ff55,inset -22px -15px 30px #050a1899,0 0 1px 1px #b2a7ff80,0 0 55px #7064d432; overflow:hidden;}
+.orbital-planet::after {content:''; position:absolute; inset:0; border-radius:50%; background:repeating-linear-gradient(14deg,transparent 0 9px,#c4bef70b 13px,#060e2920 19px,transparent 28px);}
+.orbit-coordinates {position:absolute; right:0; bottom:29px; color:var(--space-faint); font:9px/1.6 'Inter',sans-serif; letter-spacing:2px;}
+.orbit-star {position:absolute; width:2px; height:2px; border-radius:50%; background:#b9caff; box-shadow:37px 50px #aecfff88,210px -15px #b3bdff77,239px 147px #c9b9ffbb,80px 200px #b4d8ff55,178px 18px #ffffff44; left:12px; top:25px;}
+.space-section-label {display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px; font-size:10px; letter-spacing:1.6px; font-weight:600; color:var(--space-muted);}
+.space-section-label small {font-size:10px; font-weight:400; color:var(--space-faint); letter-spacing:0;}
+body.cosmic-app .price-bar {display:grid !important; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; padding:0 !important; margin:0 0 27px !important; background:none !important; border:0 !important; border-radius:0 !important; box-shadow:none !important; overflow:visible;}
+body.cosmic-app .price-chip {display:flex !important; flex-direction:column; align-items:flex-start; justify-content:center; min-width:0; width:auto; min-height:81px; gap:6px; padding:13px 15px !important; margin:0 !important; border-radius:11px !important; border:1px solid var(--space-border) !important; background:var(--space-panel) !important; color:var(--space-muted) !important; font-size:10px !important; line-height:1.4; font-weight:500; letter-spacing:.6px; box-shadow:none !important; text-align:left; white-space:normal;}
+body.cosmic-app .price-chip::before,body.cosmic-app .price-chip::after {display:none !important;}
+body.cosmic-app button.price-chip:hover,body.cosmic-app button.price-chip.is-selected {transform:none !important; border-color:var(--space-cyan) !important; background:color-mix(in srgb,var(--space-cyan) 5%,var(--space-panel)) !important;}
+body.cosmic-app .price-chip b {font-size:16px !important; font-weight:600; letter-spacing:-.3px; color:var(--space-text) !important; font-variant-numeric:tabular-nums;}
+.space-analysis-grid {display:grid; grid-template-columns:minmax(295px,360px) minmax(0,1fr); align-items:start; gap:21px; margin-bottom:24px;}
+.space-panel {background:var(--space-panel); border:1px solid var(--space-border); border-radius:15px; min-width:0;}
+.space-panel-heading {display:flex; align-items:center; gap:12px; padding:21px 23px 19px; border-bottom:1px solid var(--space-border);}
+.space-step-number {font:12px/1 'Inter',sans-serif; color:var(--space-purple); background:color-mix(in srgb,var(--space-purple) 10%,transparent); display:grid; place-items:center; width:31px; height:31px; border-radius:9px; flex-shrink:0;}
+.space-panel-heading h2 {font-size:15px; font-weight:600; color:var(--space-text); margin:0;}
+.space-panel-heading p {font-size:10px; color:var(--space-faint); margin-top:2px;}
+.space-form-body {padding:22px 23px 23px;}
+body.cosmic-app .form-group {margin:0 0 20px !important; min-width:0;}
+body.cosmic-app .form-row {display:flex; flex-direction:column; gap:0; margin:0;}
+body.cosmic-app label {font-size:12px !important; font-weight:500 !important; color:var(--space-muted) !important; margin-bottom:8px; letter-spacing:0 !important;}
+body.cosmic-app label::before {display:none !important;}
+body.cosmic-app input[type=text],body.cosmic-app input[type=password],body.cosmic-app select,
+body.cosmic-app .model-select,body.cosmic-app .symbol-select,body.cosmic-app .type-select {
+  width:100%; max-width:100%; min-width:0; height:46px; min-height:46px; padding:10px 13px !important;
+  font-family:var(--font-family-sans) !important; font-size:13px !important; font-weight:400 !important; line-height:1.5;
+  color:var(--space-text) !important; background-color:var(--space-input) !important;
+  border:1px solid var(--space-border) !important; border-radius:8px !important; box-shadow:none !important; transform:none !important;
+}
+body.cosmic-app select {padding-right:34px !important;}
+body.cosmic-app select option,body.cosmic-app select optgroup {background:var(--space-panel); color:var(--space-text); font-family:var(--font-family-sans) !important;}
+body.cosmic-app input::placeholder {color:var(--space-faint) !important;}
+body.cosmic-app input[type=text]:focus,body.cosmic-app input[type=password]:focus,body.cosmic-app select:focus {outline:0; border-color:var(--space-cyan) !important; box-shadow:0 0 0 3px color-mix(in srgb,var(--space-cyan) 16%,transparent) !important;}
+body.cosmic-app input[type=checkbox] {width:15px; height:15px; min-width:15px; accent-color:#8875f7; cursor:pointer;}
+.space-field-note {font-size:11px; color:var(--space-faint); margin:7px 0 0; line-height:1.6;}
+.space-model-controls {display:flex; gap:7px; align-items:center;}
+body.cosmic-app .add-model-btn,body.cosmic-app .manage-model-btn {flex:0 0 36px; width:36px !important; height:46px !important; min-height:46px; padding:0 !important; border:1px solid var(--space-border) !important; border-radius:8px !important; background:var(--space-panel-soft) !important; color:var(--space-muted) !important; font-size:13px !important; box-shadow:none !important;}
+body.cosmic-app .space-qc-heading {display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:9px !important;}
+body.cosmic-app .space-qc-heading label {margin:0;}
+body.cosmic-app .remember-me {display:inline-flex; align-items:center; gap:7px; font-size:11px !important; cursor:pointer;}
+body.cosmic-app #qcLevel:disabled {opacity:.58 !important;}
+body.cosmic-app .analyze-btn {width:100%; min-height:49px; margin:3px 0 0 !important; padding:12px 14px !important; display:flex; align-items:center; justify-content:center; gap:10px; border:1px solid #a99bff !important; border-radius:9px !important; background:linear-gradient(110deg,#7d68e8,#6756d2) !important; color:#fff !important; font-size:13px !important; font-weight:600; box-shadow:0 5px 20px #7963ef26 !important; letter-spacing:0 !important;}
+body.cosmic-app .analyze-btn::before,body.cosmic-app .analyze-btn::after {display:none !important;}
+body.cosmic-app .analyze-btn:hover {transform:translateY(-1px) !important; filter:brightness(1.1);}
+.space-cta-note {display:flex; justify-content:center; align-items:center; gap:6px; margin-top:11px; font-size:10px; color:var(--space-faint);}
+body.cosmic-app .result-container {padding:0 !important; margin:0 !important; min-width:0; border:1px solid var(--space-border) !important; border-radius:15px !important; background:var(--space-panel) !important; box-shadow:none !important; overflow:hidden; contain:none;}
+body.cosmic-app .result-container::before,body.cosmic-app .result-container::after {display:none !important;}
+body.cosmic-app .result-header {display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:21px 23px !important; margin:0 !important; border-bottom:1px solid var(--space-border) !important; background:transparent !important;}
+body.cosmic-app .result-header h3 {font-size:15px !important; color:var(--space-text) !important; font-weight:600 !important; background:none !important; -webkit-text-fill-color:currentColor !important; display:flex; gap:11px; align-items:center;}
+body.cosmic-app .result-header h3::before,body.cosmic-app .result-header h3::after {display:none !important;}
+.space-result-actions {display:flex; align-items:center; gap:6px;}
+body.cosmic-app .copy-btn {padding:7px 9px !important; min-width:32px; min-height:32px; border:1px solid var(--space-border) !important; border-radius:7px !important; background:var(--space-panel-soft) !important; color:var(--space-muted) !important; font-size:11px !important; line-height:1.4; box-shadow:none !important; gap:5px;}
+body.cosmic-app .copy-btn:hover {transform:none !important; background:var(--space-hover) !important;}
+body.cosmic-app #modelInfo {padding:12px 23px !important; margin:0 !important; font-size:10px !important; border:0 !important; border-bottom:1px solid var(--space-border) !important; border-radius:0 !important; color:var(--space-faint) !important; background:var(--space-panel-soft) !important; box-shadow:none !important; overflow-wrap:anywhere;}
+body.cosmic-app #modelInfo i {color:var(--space-purple);}
+body.cosmic-app .result-container .result-content {padding:19px !important; margin:0 !important; min-height:472px; border:0 !important; border-radius:0 !important; background:transparent !important; color:var(--space-text) !important; font-family:var(--font-family-sans) !important; font-size:14px !important; box-shadow:none !important; overflow-wrap:anywhere; white-space:normal;}
+.space-empty-state {min-height:426px; display:flex; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:25px 20px;}
+.space-empty-radar {position:relative; width:146px; height:146px; margin-bottom:29px; border:1px solid color-mix(in srgb,var(--space-purple) 17%,transparent); border-radius:50%; background:radial-gradient(circle,color-mix(in srgb,var(--space-purple) 8%,transparent),transparent 65%); display:grid; place-items:center; color:var(--space-purple); font-size:23px;}
+.space-empty-radar::before {content:''; position:absolute; inset:24px; border:1px solid color-mix(in srgb,var(--space-purple) 25%,transparent); border-radius:50%;}
+.space-empty-radar::after {content:''; position:absolute; width:7px; height:7px; right:8px; top:36px; background:var(--space-cyan); border-radius:50%; box-shadow:0 0 15px #57d6ea40;}
+.space-empty-state h4 {font-size:18px; color:var(--space-text); font-weight:500; margin:0 0 9px;}
+.space-empty-state p {font-size:12px; color:var(--space-muted); line-height:1.9; max-width:310px;}
+.space-empty-tags {display:flex; gap:8px; margin-top:23px; flex-wrap:wrap; justify-content:center;}
+.space-empty-tags span {border:1px solid var(--space-border); border-radius:5px; padding:3px 8px; font-size:9px; color:var(--space-faint); letter-spacing:.4px;}
+body.cosmic-app .trigger-management {padding:23px !important; margin:0 0 24px !important; border:1px solid var(--space-border) !important; border-radius:15px !important; background:var(--space-panel) !important; box-shadow:none !important; scroll-margin-top:20px;}
+body.cosmic-app .trigger-management h3 {font-size:16px !important; color:var(--space-text) !important; background:none !important; -webkit-text-fill-color:currentColor !important; margin:0;}
+body.cosmic-app .trigger-management h3::before,body.cosmic-app .trigger-management::before,body.cosmic-app .trigger-management::after {display:none;}
+.space-alert-heading {display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:19px;}
+.space-alert-heading p {font-size:11px; color:var(--space-faint); margin-top:4px;}
+.space-alert-actions {display:flex; gap:7px; flex-wrap:wrap;}
+.space-alert-tools {display:flex; justify-content:space-between; align-items:center; gap:9px; flex-wrap:wrap; padding-bottom:15px;}
+body.cosmic-app .stats-btn,body.cosmic-app .toggle-trigger-btn,body.cosmic-app .edit-btn,body.cosmic-app .delete-all-btn,body.cosmic-app .delete-btn {min-height:34px; padding:7px 11px !important; border:1px solid var(--space-border) !important; border-radius:7px !important; background:var(--space-panel-soft) !important; color:var(--space-muted) !important; font-size:11px !important; font-weight:500 !important; box-shadow:none !important; transform:none !important;}
+body.cosmic-app .delete-all-btn,body.cosmic-app .delete-btn,body.cosmic-app #deleteUserDataBtn {color:#d46c85 !important; background:transparent !important;}
+body.cosmic-app .stats-btn:hover,body.cosmic-app .toggle-trigger-btn:hover,body.cosmic-app .edit-btn:hover {background:var(--space-hover) !important; color:var(--space-text) !important;}
+body.cosmic-app .table-container {border:1px solid var(--space-border) !important; border-radius:10px !important; background:var(--space-input) !important; box-shadow:none !important; margin:0; overflow:auto;}
+body.cosmic-app .trigger-table {width:100%; min-width:570px; border-collapse:collapse; font-size:12px;}
+body.cosmic-app .trigger-table th {padding:13px 14px !important; background:var(--space-panel-soft) !important; color:var(--space-faint) !important; font-size:10px !important; font-weight:500 !important; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--space-border) !important;}
+body.cosmic-app .trigger-table td {padding:14px !important; color:var(--space-muted) !important; border-bottom:1px solid var(--space-border) !important; background:transparent !important; font-size:12px;}
+body.cosmic-app .trigger-table tbody tr:hover {background:var(--space-hover) !important; transform:none !important; box-shadow:none !important;}
+.space-footer {display:flex; justify-content:space-between; align-items:center; gap:15px; font-size:10px; color:var(--space-faint); padding-top:4px; letter-spacing:.5px;}
+.space-footer span:last-child {letter-spacing:1.8px; font-size:9px;}
+body.cosmic-app .dashboard-iframe-container {margin:24px 0 !important; border:1px solid var(--space-border) !important; border-radius:14px !important; background:var(--space-panel) !important; box-shadow:none !important; scroll-margin-top:16px;}
+body.cosmic-app .dashboard-iframe-header {color:var(--space-text) !important; background:var(--space-panel-soft) !important; font-size:13px;}
+body.cosmic-app .auth-container {position:relative; width:min(440px,calc(100% - 40px)); max-width:440px; margin:65px auto !important; padding:35px !important; background:var(--space-panel) !important; border:1px solid var(--space-border) !important; border-radius:20px !important; box-shadow:0 30px 100px #00000020 !important; overflow:visible;}
+body.cosmic-app .auth-container::before,body.cosmic-app .auth-container::after {display:none !important;}
+.space-auth-brand {display:flex; align-items:center; justify-content:center; gap:12px; margin:4px 0 29px; color:var(--space-text); font-size:22px; font-weight:600; letter-spacing:-.5px;}
+.space-auth-art {position:relative; height:140px; overflow:hidden; margin:-2px 0 19px;}
+.space-auth-art .space-orbit-art {left:50%; right:auto; top:-53px; transform:translateX(-50%) scale(.75);}
+body.cosmic-app .auth-header {margin:0 0 25px; text-align:center;}
+body.cosmic-app .auth-header h2 {font-size:23px !important; font-weight:500 !important; color:var(--space-text) !important; background:none !important; -webkit-text-fill-color:currentColor !important; text-shadow:none !important; margin:0 0 8px;}
+body.cosmic-app .auth-header h2::before,body.cosmic-app .auth-header h2::after {display:none !important;}
+body.cosmic-app .auth-header p {font-size:12px; color:var(--space-muted);}
+body.cosmic-app .auth-form > button {width:100%; min-height:46px; color:#fff; border:1px solid #a294ff; border-radius:8px; background:linear-gradient(110deg,#7d68e8,#6756d2); font-size:13px; box-shadow:none;}
+body.cosmic-app .password-container input {padding-right:46px !important;}
+body.cosmic-app .toggle-password {position:absolute; right:5px; top:50%; transform:translateY(-50%); width:38px; height:38px; padding:0; background:none; color:var(--space-faint); border:0; box-shadow:none;}
+body.cosmic-app .toggle-auth {font-size:12px; color:var(--space-muted); margin:22px 0 0;}
+body.cosmic-app .toggle-auth a {color:var(--space-purple);}
+body.cosmic-app .swal2-popup {border:1px solid var(--space-border) !important; border-radius:17px !important; background:var(--space-panel) !important; color:var(--space-text) !important; font-family:var(--font-family-sans);}
+body.cosmic-app .swal2-title,body.cosmic-app .swal2-html-container {color:var(--space-text) !important;}
+body.cosmic-app .swal2-confirm {background:#7864de !important; border-radius:8px !important;}
+body.cosmic-app .swal2-cancel {background:var(--space-hover) !important; color:var(--space-text) !important; border-radius:8px !important;}
+body.cosmic-app .ai-analysis-content {background:var(--space-panel) !important; border:1px solid var(--space-border) !important;}
+body.cosmic-app .result-content .ai-card {border:1px solid var(--space-border) !important; background:var(--space-panel-soft) !important; color:var(--space-text) !important; border-radius:12px !important; box-shadow:none !important; min-width:0;}
+body.cosmic-app .result-content .ai-card header {background:transparent !important; padding:13px 17px !important;}
+body.cosmic-app .result-content .ai-h-sym {color:var(--space-text) !important; font-size:24px !important;}
+body.cosmic-app .result-content .ai-box {background:var(--space-input) !important; border:1px solid var(--space-border) !important; border-radius:9px !important; box-shadow:none !important; padding:12px !important;}
+body.cosmic-app .result-content .ai-box span {color:var(--space-muted) !important; font-size:11px !important;}
+body.cosmic-app .result-content .ai-box strong {font-size:22px !important; color:var(--space-text) !important;}
+body.cosmic-app .result-content .ai-card section.tp {background:var(--space-input) !important; border:1px solid var(--space-border) !important; box-shadow:none !important;}
+body.cosmic-app .result-content .tp-title {color:var(--space-muted) !important; font-size:12px !important;}
+body.cosmic-app .result-content .tp-row {background:var(--space-panel-soft) !important; padding:8px !important; min-height:38px;}
+body.cosmic-app .result-content .tp-price {font-size:16px !important; color:var(--space-text) !important;}
+body.cosmic-app .result-content .tp-row > span,body.cosmic-app .result-content .tp-row small {font-size:10px !important; min-width:53px !important;}
+body.cosmic-app .result-content .ai-info > div {background:var(--space-input) !important; color:var(--space-muted) !important; font-size:11px !important;}
+body.cosmic-app .result-content .qc-threshold {font-size:11px !important; color:var(--space-muted) !important;}
+body.cosmic-app .result-content .qc-label {font-size:12px !important;}
+body.cosmic-app .result-content .qc-badge {font-size:11px !important;}
+body.cosmic-app .result-content .qc-fill::after {animation:none !important;}
+body.cosmic-app .result-content .ai-card > div:first-child[style*="background"] {gap:10px; overflow-wrap:anywhere; font-size:12px !important;}
+body.cosmic-app .result-content .ai-card > div:first-child[style*="background"] span:last-child {font-size:10px !important; max-width:65%;}
+body.cosmic-app .notification {background:var(--space-panel-soft); color:var(--space-text); border:1px solid var(--space-border);}
+body.cosmic-app .skip-to-content {z-index:10001; top:-100px;}
+body.cosmic-app .skip-to-content:focus {top:12px;}
+#analysisSettings,#spaceOverview {scroll-margin-top:20px;}
+@media(min-width:1800px) {.space-workspace{margin-right:auto; margin-left:calc(220px + (100vw - 1800px)/2);}}
+@media(max-width:1190px) {
+  .space-sidebar {width:185px; padding-left:12px; padding-right:12px;}
+  .space-brand {gap:9px; padding-left:5px; padding-right:0;}
+  .space-brand strong {font-size:16px;}
+  .space-brand small {font-size:8px; letter-spacing:1.8px;}
+  .space-workspace {margin-left:185px; padding-left:23px; padding-right:23px;}
+  .space-analysis-grid {grid-template-columns:310px minmax(0,1fr); gap:17px;}
+  body.cosmic-app .price-bar {grid-template-columns:repeat(3,minmax(0,1fr));}
+  .space-form-body,.space-panel-heading {padding-left:19px; padding-right:19px;}
+  .mission-hero-copy {max-width:70%;}
+  .space-orbit-art {right:-26px; transform:scale(.88);}
+}
+@media(max-width:980px) {
+  .space-sidebar {position:static; width:100%; padding:18px 23px 12px; border-right:0; border-bottom:1px solid var(--space-border);}
+  .space-brand {padding:0 0 15px;}
+  .space-navigation {flex-direction:row; overflow-x:auto; gap:5px; padding-bottom:4px;}
+  body.cosmic-app .space-nav-item {width:auto; flex-shrink:0; padding:9px 12px; font-size:12px; white-space:nowrap;}
+  .space-nav-label,.space-nav-divider,.space-sidebar-footer {display:none;}
+  .space-workspace {margin-left:0;}
+  body.cosmic-app .user-header {min-height:74px; padding:14px 0 !important;}
+  body.cosmic-app .user-header {flex-direction:row !important; text-align:left !important;}
+  body.cosmic-app .welcome-text {text-align:left !important;}
+  .mission-hero {min-height:196px;}
+  .space-analysis-grid {grid-template-columns:minmax(280px,310px) minmax(0,1fr);}
+}
+@media(max-width:720px) {
+  .space-analysis-grid {grid-template-columns:minmax(0,1fr); gap:18px;}
+  .space-workspace {padding:0 17px 23px;}
+  .space-sidebar {padding:18px 17px 9px;}
+  .space-brand strong {font-size:18px;}
+  .space-brand small {font-size:8px;}
+  body.cosmic-app .welcome-text {font-size:11px !important; max-width:calc(100vw - 142px);}
+  .space-breadcrumb {font-size:8px; letter-spacing:1.4px;}
+  .mission-hero {min-height:188px; padding:27px 0;}
+  .mission-hero-copy {max-width:80%;}
+  .mission-hero h1 {font-size:28px; line-height:1.45; letter-spacing:-.9px;}
+  .mission-hero p {font-size:11px; max-width:235px;}
+  .mission-meta {font-size:8px; gap:6px; letter-spacing:.6px; margin-top:14px;}
+  .mission-hero .space-orbit-art {right:-110px; top:0; transform:scale(.67); opacity:.5;}
+  .orbit-coordinates {display:none;}
+  .space-eyebrow {font-size:8px; letter-spacing:1.5px;}
+  body.cosmic-app .price-bar {gap:7px; margin-bottom:22px !important;}
+  body.cosmic-app .price-chip {padding:10px !important; min-height:70px; font-size:9px !important; gap:6px;}
+  body.cosmic-app .price-chip b {font-size:14px !important;}
+  .space-section-label {font-size:9px; letter-spacing:1.2px;}
+  .space-section-label small {font-size:9px;}
+  .space-panel-heading {padding:19px 20px;}
+  .space-form-body {padding:21px 20px;}
+  body.cosmic-app select,body.cosmic-app input[type=text],body.cosmic-app input[type=password],body.cosmic-app .model-select,body.cosmic-app .symbol-select,body.cosmic-app .type-select {font-size:16px !important; height:48px;}
+  body.cosmic-app .result-header {padding:18px !important;}
+  body.cosmic-app .result-container .result-content {min-height:350px; padding:12px !important;}
+  .space-empty-state {min-height:340px; padding:22px 10px;}
+  .space-empty-radar {width:123px; height:123px; margin-bottom:23px;}
+  .space-empty-state h4 {font-size:17px;}
+  body.cosmic-app .trigger-management {padding:18px !important;}
+  .space-alert-heading {align-items:flex-start;}
+  .space-alert-actions {gap:6px;}
+  body.cosmic-app .stats-btn,body.cosmic-app .toggle-trigger-btn,body.cosmic-app .edit-btn,body.cosmic-app .delete-all-btn,body.cosmic-app .delete-btn {min-height:38px;}
+  body.cosmic-app .copy-btn {min-height:36px;}
+  body.cosmic-app .result-content .ai-info {flex-wrap:wrap;}
+  body.cosmic-app .result-content .ai-box strong {font-size:20px !important;}
+  .space-footer {align-items:flex-start; font-size:9px;}
+  .space-footer span:last-child {font-size:8px;}
+  body.cosmic-app .auth-container {margin:28px auto !important; padding:28px 23px !important; width:calc(100% - 30px);}
+  .space-auth-art {height:115px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  body.cosmic-app *,body.cosmic-app *::before,body.cosmic-app *::after {animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important;}
+}
+
+</style>
+<?!= include('PremiumStyles'); ?>
+</head>
+<body class="cosmic-app dark-mode">
+  <a href="#mainApp" target="_self" class="skip-to-content">ข้ามไปเนื้อหาหลัก</a>
+  
+
+
+  <div class="page-loader"><div class="progress-bar"></div></div>
+
+  <div class="ai-analysis-modal" id="aiAnalysisModal" role="dialog" aria-modal="true" aria-labelledby="premiumDialogTitle" aria-describedby="aiStatusText">
+    <div class="ai-analysis-content">
+      <div class="premium-dialog-top"><span class="orbit-mark" aria-hidden="true"></span><span class="premium-spinner" aria-hidden="true"></span></div>
+      <div class="premium-dialog-kicker">MARKET INTELLIGENCE ENGINE</div>
+      <h2 class="premium-dialog-title" id="premiumDialogTitle">กำลังวิเคราะห์ตลาด</h2>
+      <div class="ai-status-text" id="aiStatusText" role="status">กำลังรอผลวิเคราะห์จากเซิร์ฟเวอร์</div>
+      <div class="premium-dialog-meta"><span id="premiumDialogSymbol"></span><span id="premiumDialogModel"></span></div>
+      <div class="premium-indeterminate" role="progressbar" aria-label="กำลังรอผลวิเคราะห์"><span></span></div>
+      <div class="premium-dialog-timer"><span>เวลาที่ใช้</span><strong id="premiumElapsed">00:00</strong></div>
+      <p class="premium-dialog-hint" id="premiumWaitHint">กำลังรอคำตอบจากเซิร์ฟเวอร์</p>
+      <button type="button" class="premium-dialog-button" id="premiumMinimize" onclick="premiumCloseRunDialog()">พับหน้ารอ · ดูข้อมูลอื่นต่อ</button>
+      <p class="premium-risk-caption">การพับหน้ารอไม่ได้ยกเลิกงาน และไม่ส่งคำขอวิเคราะห์ใหม่</p>
+    </div>
+  </div>
+
+  <div class="cosmic-shell">
+    <div class="auth-container" id="authContainer" style="display: none;">
+      <div class="space-auth-brand"><img class="chart2plan-mark" src="https://basssg.github.io/AlphaSense-Analysis-Webapp/assets/brand/chart2plan-icon-192-v1.png" width="48" height="48" alt=""><span>Chart<span class="chart2plan-number">2</span>Plan</span></div>
+      <div id="loginForm">
+        <div class="auth-header">
+          <h2>กลับสู่มุมมองของคุณ</h2>
+          <p>พื้นที่วิเคราะห์ตลาด ติดตามสัญญาณ<br>และตัดสินใจอย่างมีข้อมูล</p>
+        </div>
+        <div class="auth-form">
+          <div class="form-group">
+            <label for="loginUsername">ชื่อผู้ใช้</label>
+            <input type="text" id="loginUsername" placeholder="กรอกชื่อผู้ใช้" autocomplete="username">
+            <div class="validation-feedback" id="loginUsernameFeedback"></div>
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">รหัสผ่าน</label>
+            <div class="password-container">
+              <input type="password" id="loginPassword" placeholder="กรอกรหัสผ่าน" autocomplete="current-password">
+              <button type="button" class="toggle-password" onclick="togglePasswordVisibility('loginPassword', 'loginPasswordToggle')" aria-label="Toggle password visibility">
+                <i id="loginPasswordToggle" class="fas fa-eye"></i>
+              </button>
+            </div>
+            <div class="validation-feedback" id="loginPasswordFeedback"></div>
+          </div>
+          <div class="form-group">
+            <label class="remember-me">
+              <input type="checkbox" id='af.rememberMe'>
+              จดจำการเข้าสู่ระบบ
+            </label>
+          </div>
+          <button type="button" id="loginBtn" class="btn-click-effect" onclick="handleLogin()">
+            <i class="fas fa-arrow-right-to-bracket" aria-hidden="true"></i> เข้าสู่พื้นที่ทำงาน
+          </button>
+        </div>
+        <div class="toggle-auth">
+          <p>ยังไม่มีบัญชี?</p>
+          <a href="#" onclick="showRegisterForm(); return false;">สร้างบัญชีใหม่</a>
+        </div>
+        <div class="error-message" id="loginError" role="alert">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+        <p class="premium-auth-caption">CHART2PLAN · วิเคราะห์กราฟ วางแผน Allindy + Fibo ด้วย AI<br>ผลวิเคราะห์เป็นข้อมูลประกอบการตัดสินใจ ไม่รับประกันผลการเทรด</p>
+      </div>
+
+      <div id="registerForm" style="display: none;">
+        <div class="auth-header">
+          <h2>สร้างบัญชี AI</h2>
+          <p>สร้างบัญชีใหม่เพื่อเข้าใช้งาน AI Trading System</p>
+        </div>
+        <div class="auth-form">
+          <div class="form-group">
+            <label for="registerUsername">ชื่อผู้ใช้</label>
+            <input type="text" id="registerUsername" placeholder="กรอกชื่อผู้ใช้" autocomplete="username">
+            <div class="validation-feedback" id="registerUsernameFeedback"></div>
+          </div>
+          <div class="form-group">
+            <label for="registerPassword">รหัสผ่าน</label>
+            <div class="password-container">
+              <input type="password" id="registerPassword" placeholder="กรอกรหัสผ่าน" autocomplete="new-password">
+              <button type="button" class="toggle-password" onclick="togglePasswordVisibility('registerPassword', 'registerPasswordToggle')" aria-label="Toggle password visibility">
+                <i id="registerPasswordToggle" class="fas fa-eye"></i>
+              </button>
+            </div>
+            <div class="validation-feedback" id="registerPasswordFeedback"></div>
+          </div>
+          <div class="form-group">
+            <label for="registerConfirmPassword">ยืนยันรหัสผ่าน</label>
+            <div class="password-container">
+              <input type="password" id="registerConfirmPassword" placeholder="ยืนยันรหัสผ่าน" autocomplete="new-password">
+              <button type="button" class="toggle-password" onclick="togglePasswordVisibility('registerConfirmPassword', 'registerConfirmPasswordToggle')" aria-label="Toggle password visibility">
+                <i id="registerConfirmPasswordToggle" class="fas fa-eye"></i>
+              </button>
+            </div>
+            <div class="validation-feedback" id="registerConfirmPasswordFeedback"></div>
+          </div>
+          <div class="form-group">
+            <label for="registerDisplayName">ชื่อที่แสดง</label>
+            <input type="text" id="registerDisplayName" placeholder="กรอกชื่อที่แสดง" autocomplete="name">
+            <div class="validation-feedback" id="registerDisplayNameFeedback"></div>
+          </div>
+          <div class="form-group">
+            <label for="registerLineOAUserId">Line OA User ID (ไม่บังคับ)</label>
+            <input type="text" id="registerLineOAUserId" placeholder="กรอก Line OA User ID">
+          </div>
+          <div class="form-group">
+            <label for="registerChannelAccessToken">Channel Access Token (ไม่บังคับ)</label>
+            <input type="text" id="registerChannelAccessToken" placeholder="กรอก Channel Access Token">
+          </div>
+          <button type="button" class="btn-click-effect" onclick="handleRegister()">
+            <i class="fas fa-user-plus"></i> สร้างบัญชี AI
+          </button>
+        </div>
+        <div class="toggle-auth">
+          <p>มีบัญชีแล้ว?</p>
+          <a href="#" onclick="showLoginForm(); return false;">เข้าสู่ระบบ</a>
+        </div>
+        <div class="error-message" id="registerError">กรุณากรอกข้อมูลให้ครบหรือรหัสผ่านไม่ตรงกัน</div>
+        <div class="success-message" id="registerSuccess" style="display: none;">สมัครสมาชิกสำเร็จ! รอการอนุมัติจาก Admin</div>
+      </div>
+    </div>
+
+    <div id="mainApp">
+      <aside class="space-sidebar" aria-label="เมนูหลัก">
+        <a href="#spaceOverview" target="_self" class="space-brand" aria-label="Chart2Plan ภาพรวม"><img class="chart2plan-mark" src="https://basssg.github.io/AlphaSense-Analysis-Webapp/assets/brand/chart2plan-icon-192-v1.png" width="40" height="40" alt=""><span><strong>Chart<span class="chart2plan-number">2</span>Plan</strong><small>AI TRADING WORKSPACE</small></span></a>
+        <p class="space-nav-label">WORKSPACE</p>
+        <nav class="space-navigation" aria-label="ส่วนต่าง ๆ ของแดชบอร์ด">
+          <button type="button" class="space-nav-item is-active" data-section="spaceOverview" onclick="spaceNavigate('spaceOverview')" aria-current="location"><i class="fas fa-border-all" aria-hidden="true"></i>ภาพรวม</button>
+          <button type="button" class="space-nav-item" data-section="analysisSettings" onclick="spaceNavigate('analysisSettings')"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>วิเคราะห์ AI</button>
+          <button type="button" class="space-nav-item" data-section="spaceAlerts" onclick="spaceNavigate('spaceAlerts')"><i class="far fa-bell" aria-hidden="true"></i>การแจ้งเตือน</button>
+          <div class="space-nav-divider"></div>
+          <p class="space-nav-label">EXPLORE</p>
+          <button type="button" class="space-nav-item" onclick="scrollToDashboard()"><i class="fas fa-chart-line" aria-hidden="true"></i>Dashboard</button>
+          <button type="button" class="space-nav-item" onclick="showSnDForex()"><i class="fas fa-chart-area" aria-hidden="true"></i>SnD Forex</button>
+          <button type="button" class="space-nav-item" onclick="showGoogleSheet()"><i class="fas fa-table-cells" aria-hidden="true"></i>Google Sheet</button>
+          <button type="button" class="space-nav-item" onclick="navigateToAI()"><i class="fas fa-atom" aria-hidden="true"></i>เครื่องมือ AI เพิ่มเติม</button>
+        </nav>
+        <div class="space-sidebar-footer"><div class="orbit-line"></div><div class="space-caption">Clarity over noise.</div><div>Market intelligence, thoughtfully.</div></div>
+      </aside>
+      <main class="space-workspace" id="spaceOverview">
+        <div class="user-header">
+          <div><div class="space-breadcrumb">WORKSPACE / OVERVIEW</div><div class="welcome-text" id="welcomeText"><span class="skeleton-box" style="display:inline-block;width:150px;height:16px"></span></div></div>
+          <div class="user-actions">
+            <button type="button" onclick="toggleTheme()" class="theme-toggle-btn" aria-label="สลับธีมมืดและสว่าง" title="สลับธีมมืดและสว่าง"><i id="themeToggleIcon" class="fas fa-sun" aria-hidden="true"></i></button>
+            <span class="space-caption">ทดสอบส่วนตัว · ไม่ต้องใส่ user/password</span>
+          </div>
+        </div>
+        <section class="mission-hero" aria-labelledby="spaceTitle">
+          <div class="mission-hero-copy"><div class="space-eyebrow">FROM CHARTS TO TRADING PLANS.</div><h1 id="spaceTitle">วิเคราะห์กราฟ <span>วางแผนเทรดด้วย AI</span></h1><p>วิธีใช้งานเดิม · วิเคราะห์ด้วยกลยุทธ์ Allindy + Fibo · โหมดทดสอบ ไม่ส่งคำสั่งจริง</p><div class="mission-meta"><b>✦</b> CHART2PLAN <span>·</span> AI TRADING WORKSPACE</div></div>
+          <div class="premium-clock-card"><small>BANGKOK · UTC+7</small><strong id="premiumClock">—</strong><span id="premiumDate">เวลาประเทศไทย</span></div>
+        </section>
+        <div class="space-section-label"><span>MARKET SNAPSHOT</span><div class="premium-market-header"><small id="spacePriceStatus" role="status">กำลังโหลดราคาล่าสุด</small><button type="button" class="premium-text-button" onclick="loadPriceBar()" id="premiumRefreshPrices" aria-label="โหลดราคาล่าสุดอีกครั้ง" title="โหลดราคาใหม่ ไม่เรียก AI"><i class="fas fa-rotate-right" aria-hidden="true"></i></button></div></div>
+      <div class="price-bar" id="priceBar">
+         <span class="price-chip skeleton-box" style="width: 100px; height: 30px;"></span>
+         <span class="price-chip skeleton-box" style="width: 100px; height: 30px;"></span>
+         <span class="price-chip skeleton-box" style="width: 100px; height: 30px;"></span>
+         <span class="price-chip skeleton-box" style="width: 100px; height: 30px;"></span>
+      </div>
+
+      <div class="space-analysis-grid">
+        <section class="space-panel" id="analysisSettings" aria-labelledby="spaceSettingsTitle">
+          <div class="space-panel-heading"><span class="space-step-number">01</span><div><h2 id="spaceSettingsTitle">ตั้งค่าการวิเคราะห์</h2><p>เลือกตลาดและเครื่องมือของคุณ</p></div></div>
+          <div class="space-form-body">
+                  <div class="form-group">
+        <label for="symbol">สินทรัพย์ที่ต้องการวิเคราะห์</label>
+        <select id="symbol" class="symbol-select">
+          <optgroup label="🏆 Forex Majors" id="forexSymbolsGroup">
+            <option value="XAU/USD">🥇 XAU/USD (Gold)</option>
+            <option value="CLUSD">🛢️ CL/USD (Crude Oil)</option>
+            <option value="EUR/USD">🇪🇺 EUR/USD</option>
+            <option value="GBP/USD">🇬🇧 GBP/USD</option>
+            <option value="USD/JPY">🇯🇵 USD/JPY</option>
+            <option value="AUD/USD">🇦🇺 AUD/USD</option>
+            <option value="NZD/USD">🇳🇿 NZD/USD</option>
+            <option value="USD/CHF">🇨🇭 USD/CHF</option>
+            <option value="USD/CAD">🇨🇦 USD/CAD</option>
+            <option value="EUR/GBP">🇪🇺🇬🇧 EUR/GBP</option>
+            <option value="EUR/JPY">🇪🇺🇯🇵 EUR/JPY</option>
+            <option value="GBP/JPY">🇬🇧🇯🇵 GBP/JPY</option>
+            <option value="AUD/JPY">🇦🇺🇯🇵 AUD/JPY</option>
+            <option value="NZD/JPY">🇳🇿🇯🇵 NZD/JPY</option>
+            <option value="EUR/AUD">🇪🇺🇦🇺 EUR/AUD</option>
+            <option value="GBP/AUD">🇬🇧🇦🇺 GBP/AUD</option>
+            <option value="CHF/JPY">🇨🇭🇯🇵 CHF/JPY</option>
+            <option value="AUD/NZD">🇦🇺🇳🇿 AUD/NZD</option>
+            <option value="CAD/JPY">🇨🇦🇯🇵 CAD/JPY</option>
+            <option value="EUR/CHF">🇪🇺🇨🇭 EUR/CHF</option>
+            <option value="GBP/CHF">🇬🇧🇨🇭 GBP/CHF</option>
+            <option value="NZD/CHF">🇳🇿🇨🇭 NZD/CHF</option>
+          </optgroup>
+          <optgroup label="🚀 Cryptocurrency" id="cryptoSymbolsGroup">
+            <option value="BTC/USD">₿ BTC/USD (Bitcoin)</option>
+            <option value="ETH/USD">⟠ ETH/USD (Ethereum)</option>
+            <option value="BNB/USD">🔶 BNB/USD (Binance)</option>
+            <option value="XRP/USD">💧 XRP/USD (Ripple)</option>
+            <option value="ADA/USD">🔷 ADA/USD (Cardano)</option>
+            <option value="SOL/USD">☀️ SOL/USD (Solana)</option>
+            <option value="DOGE/USD">🐕 DOGE/USD (Dogecoin)</option>
+            <option value="DOT/USD">⚫ DOT/USD (Polkadot)</option>
+            <option value="MATIC/USD">🔺 MATIC/USD (Polygon)</option>
+            <option value="LTC/USD">🥈 LTC/USD (Litecoin)</option>
+            <option value="SHIB/USD">🐕‍🦺 SHIB/USD (Shiba)</option>
+            <option value="TRX/USD">🔴 TRX/USD (Tron)</option>
+            <option value="AVAX/USD">🔺 AVAX/USD (Avalanche)</option>
+            <option value="UNI/USD">🦄 UNI/USD (Uniswap)</option>
+            <option value="WBTC/USD">🔗 WBTC/USD (Wrapped Bitcoin)</option>
+            <option value="LINK/USD">🔗 LINK/USD (Chainlink)</option>
+            <option value="ETC/USD">💚 ETC/USD (Ethereum Classic)</option>
+            <option value="XLM/USD">⭐ XLM/USD (Stellar)</option>
+            <option value="BCH/USD">💰 BCH/USD (Bitcoin Cash)</option>
+            <option value="ATOM/USD">⚛️ ATOM/USD (Cosmos)</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="aiModel">โมเดล AI</label>
+        <div class="space-model-controls">
+          <select id="aiModel" class="model-select" style="flex:1 1 auto;">
+            <option value="openai/chatgpt-4o-latest"  >gpt-4o</option>
+            <option value="openai/gpt-6.1-sol-pro" selected >gpt-6.1-sol-pro</option>
+            <option value="qwen-plus" >qwen-plus</option>
+            <option value="gemini-3.1-pro-preview" >gemini-3.1-pro</option>
+            <option value="opencode-go/qwen3.6-plus" >qwen3.6-plus</option>  
+            <option value="opencode-go/glm-5.1" >glm-5.1</option> 
+            <option value="opencode-go/kimi-k2.6" >kimi-k2.6</option> 
+            <option value="opencode-go/deepseek-v4-pro" >deepseek-v4-pro</option> 
+            <option value="opencode-go/mimo-v2.5-pro" >mimo-v2.5-pro</option>   
+            </select>
+
+          <button type="button" class="add-model-btn btn-click-effect"
+                  onclick="openAddModelModal()" title="เพิ่มโมเดล AI" aria-label="เพิ่มโมเดล AI">
+            <i class="fas fa-plus"></i>
+          </button>
+
+          <button type="button" class="manage-model-btn btn-click-effect"
+                  onclick="openManageModelsModal()" title="จัดการโมเดล AI" aria-label="จัดการโมเดล AI">
+            <i class="fas fa-wrench"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group form-col">
+          <label for="tradeType">รูปแบบการเทรด</label>
+          <select id="tradeType" class="type-select">
+            <option value="daytrade">Day Trading</option>
+            <option value="swingtrade">Swing Trading</option>
+            <option value="scalping">Scalping</option>
+          </select>
+        </div>
+
+        <div class="form-group form-col">
+          <div class="space-qc-heading">
+            <label for="qcLevel" style="margin-bottom: 0;">เกณฑ์คุณภาพ (QC)</label>
+
+            <label class="remember-me" title="กำหนดเกณฑ์ QC จากหลักฐาน Allindy + Fibo อัตโนมัติ">
+              <input type="checkbox" id="dynamicQcToggle" checked> 
+              <span>อัตโนมัติ</span>
+            </label>
+          </div>
+
+          <select id="qcLevel" class="qc-select">
+            <option value="10">10 คะแนน - ตรวจระบบ (ไม่ลดกฎความเสี่ยง)</option>
+            <option value="55" >55% - ผ่านง่าย</option>
+            <option value="60" >60% - ปกติ</option>
+            <option value="65" selected>65 คะแนน - Default</option>
+            <option value="70" >70% - คุณภาพสูง</option>
+            <option value="75" >75% - Strict</option>
+            <option value="80" >80% - Ultra</option>
+            <option value="85" >85% - Ultra Stict</option>
+          </select>
+        </div>
+      </div>
+
+
+            <p class="space-field-note" style="margin:-9px 0 18px">เปิด QC อัตโนมัติ เพื่อประเมินหลักฐาน Allindy + Fibo ตามสภาวะตลาด</p>
+                  <button type="button" class="analyze-btn btn-click-effect" onclick="performAnalysis()" id="analyzeBtn">
+        <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
+        <span>เริ่มวิเคราะห์ตลาด</span>
+      </button>
+
+<div class="space-cta-note"><i class="fas fa-microchip" aria-hidden="true"></i> ใช้โมเดลที่เลือก · มีค่าเรียก AI ต่อรอบ</div>
+          </div>
+        </section>
+      <div class="result-container">
+        <div class="result-header">
+          <h3><span class="space-step-number">02</span> ผลการวิเคราะห์</h3>
+          <div class="space-result-actions">
+            <span class="premium-history-count" id="premiumHistoryCount" aria-label="ตำแหน่งประวัติ"></span>
+            <button type="button" class="copy-btn btn-click-effect" onclick="showPreviousResult()" title="ดูผลลัพธ์ก่อนหน้า">
+              <i class="fas fa-arrow-left" aria-hidden="true"></i><span class="space-sr-only">ย้อนกลับ</span>
+            </button>
+            <button type="button" class="copy-btn btn-click-effect" onclick="showNextResult()" title="ดูผลลัพธ์ถัดไป">
+              <i class="fas fa-arrow-right" aria-hidden="true"></i><span class="space-sr-only">ถัดไป</span>
+            </button>
+            <button type="button" class="copy-btn btn-click-effect" onclick="copyResult()" id="copyBtn" title="คัดลอกข้อความและบันทึกรูปภาพผลวิเคราะห์" disabled>
+              <i class="fas fa-download" aria-hidden="true"></i> บันทึก
+            </button>
+          </div>
+        </div>
+        <div id="modelInfo">
+          <i class="fas fa-microchip"></i> AI Engine: <span id="modelName">-</span>
+        </div>
+        <div style="padding:16px 22px 0" id="premiumRunBannerHost"><div class="premium-run-banner" id="premiumRunBanner" hidden><span class="premium-spinner" aria-hidden="true"></span><div><strong id="premiumRunSymbol">กำลังวิเคราะห์</strong><small id="premiumInlineElapsed">รอคำตอบจากเซิร์ฟเวอร์</small></div><button type="button" id="premiumShowRun" onclick="premiumOpenRunDialog()">ดูสถานะ</button></div></div>
+        <div class="result-content" id="result" aria-live="polite" aria-busy="false"><div class="space-empty-state"><div class="space-empty-radar" aria-hidden="true"><i class="fas fa-chart-line"></i></div><h4>มุมมองถัดไป เริ่มที่นี่</h4><p>เลือกตลาดและโมเดลที่ต้องการ<br>ผลวิเคราะห์และแผนการเข้าโซนจะแสดงในพื้นที่นี้</p><div class="space-empty-tags"><span>MULTI-TIMEFRAME</span><span>PENDING LIMIT</span><span>QUALITY CHECK</span></div></div></div>
+      </div>
+
+      </div>
+      <section class="trigger-management" id="spaceAlerts" aria-labelledby="spaceAlertsTitle">
+        <div class="space-alert-heading">
+          <div><h3 id="spaceAlertsTitle">สัญญาณและการแจ้งเตือน <span class="premium-alert-count" id="premiumAlertCount"></span></h3><p>รายการ Active / Review · สถานะในตารางไม่ใช่การยืนยัน Fill จากโบรกเกอร์</p></div>
+          <div class="space-alert-actions">
+            <button type="button" class="stats-btn btn-click-effect" id="deleteUserDataBtn" onclick="showDeleteUserPanel()" title="ลบข้อมูลทั้งหมด">
+              <i class="fas fa-user-minus"></i> ลบข้อมูลผู้ใช้
+            </button>
+            <button type="button" class="stats-btn btn-click-effect" id="showStatBtn" onclick="showStatPopup()" title="ดูสถิติการเทรด">
+              <i class="fas fa-chart-bar"></i> สถิติการเทรด
+            </button>
+            <button type="button" class="toggle-trigger-btn btn-click-effect" id="toggleTriggerBtn" onclick="toggleTriggerTableDisplay()" title="แสดง/ซ่อนตาราง">
+              <i id="triggerToggleIcon" class="fas fa-chevron-down"></i> แสดง/ซ่อน
+            </button>
+          </div>
+        </div>
+
+        <div class="space-alert-tools">
+          <button type="button" class="delete-all-btn btn-click-effect" onclick="confirmDeleteAllTriggers()" title="ลบ Trigger ทั้งหมด">
+            <i class="fas fa-exclamation-triangle"></i> ลบทั้งหมด
+          </button>
+          <button type="button" class="edit-btn btn-click-effect" id="editBtn" onclick="toggleEditMode()" title="โหมดแก้ไข">
+            <i class="fas fa-edit"></i> โหมดแก้ไข
+          </button>
+        </div>
+
+        <div class="table-container" id="triggerTableContainer">
+          <table class="trigger-table" id="triggersTable">
+            <thead>
+              <tr>
+                <th class="checkbox-col" style="display: none; text-align: center; width: 50px;">
+                  <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)" title="เลือกทั้งหมด">
+                </th>
+                <th>Symbol</th>
+                <th>Type</th>
+                <th>Alert Type</th>
+                <th>Target Price</th>
+                <th>Status</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <button type="button" class="bulk-delete-btn btn-click-effect" id="bulkDeleteBtn" style="display: none;" onclick="deleteSelectedAlerts()" title="ลบรายการที่เลือก">
+            <i class="fas fa-trash-alt"></i> ลบรายการที่เลือก
+          </button>
+        </div>
+      </section>
+
+      <div class="dashboard-iframe-container" id="dashboardContainer" style="display:none;">
+        <div class="dashboard-loader" id="dashboardLoader">
+          <div class="loader">
+            <i class="fas fa-chart-line loader-icon"></i>
+          </div>
+          <div class="loading-text">กำลังโหลด Dashboard...</div>
+        </div>
+
+        <div class="dashboard-iframe-header">
+          <i class="fas fa-tachometer-alt"></i>
+          <span>AI Trading Dashboard – ภาพรวมการเทรดแบบเรียลไทม์</span>
+        </div>
+
+        <iframe class="dashboard-iframe" title="AI Trading Dashboard" id="dashboardIframe"
+          data-src="<?!= afSheetPreviewUrl_() ?>"
+          src="about:blank"
+          sandbox="allow-scripts allow-same-origin allow-forms">
+        </iframe>
+      </div>
+
+      <div class="dashboard-iframe-container" id="sndIframeContainer" style="display:none;">
+        <div class="dashboard-loader" id="sndLoader">
+          <div class="loader">
+            <i class="fas fa-globe loader-icon"></i>
+          </div>
+          <div class="loading-text">กำลังโหลด SnD Forex...</div>
+        </div>
+        <div class="dashboard-iframe-header">
+          <i class="fas fa-globe"></i>
+          <span>SnD Forex – Supply & Demand Dashboard</span>
+        </div>
+        <iframe class="dashboard-iframe" title="SnD Forex" id="sndIframe"
+                data-src="https://basssg.github.io/SnDForex/"
+                src="about:blank"
+                sandbox="allow-scripts allow-same-origin allow-forms">
+        </iframe>
+      </div>  
+
+      <div class="dashboard-iframe-container" id="deleteUserContainer" style="display:none;">
+        <div class="dashboard-loader" id="deleteUserLoader">
+          <div class="loader">
+            <i class="fas fa-user-minus loader-icon"></i>
+          </div>
+          <div class="loading-text">กำลังโหลดหน้า Delete User...</div>
+        </div>
+      
+        <div class="dashboard-iframe-header">
+          <i class="fas fa-user-minus"></i>
+          <span>Delete User Data – ลบข้อมูลผู้ใช้</span>
+        </div>
+      
+        <iframe class="dashboard-iframe" title="Delete User Data" id="deleteUserIframe"
+                data-src="<?!= afSheetPreviewUrl_() ?>"
+                src="about:blank"
+                sandbox="allow-scripts allow-same-origin allow-forms">
+        </iframe>
+      </div>
+
+      <div class="dashboard-iframe-container" id="gsIframeContainer" style="display:none;">
+        <div class="dashboard-loader" id="gsLoader">
+          <div class="loader">
+            <i class="fas fa-table loader-icon"></i>
+          </div>
+          <div class="loading-text">กำลังโหลด Google Sheet...</div>
+        </div>
+
+        <div class="dashboard-iframe-header">
+          <i class="fas fa-table"></i>
+          <span>Google Sheet – ข้อมูลเรียลไทม์</span>
+        </div>
+
+        <iframe class="dashboard-iframe" title="Google Sheet" id="gsIframe"
+                data-src="<?!= afSheetPreviewUrl_() ?>"
+                src="about:blank"
+                sandbox="allow-scripts allow-same-origin allow-forms">
+        </iframe>
+      </div>
+
+
+      <footer class="space-footer"><span>Chart2Plan · AI Trading Workspace</span><span>AI INSIGHTS ARE NOT A GUARANTEE OF RETURNS.</span></footer>
+      </main>
+    </div>
+  </div>
+
+  <div class="notification" id="notification">คัดลอกเรียบร้อยแล้ว!</div>
+
+  <style>#authContainer {display:none !important;}</style>
+  <script>window.AF_SOLO_WORKSPACE = <?!= JSON.stringify(afSoloIdentity_()) ?>;</script>
+  <?!= include('PremiumUi'); ?>
+  <?!= include('ClientScript'); ?>
+  <?!= include('ResearchUi'); ?>
+</body>
+</html>
