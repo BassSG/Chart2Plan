@@ -410,3 +410,66 @@ function roundToTick_(price, mintick, mode) {
   if (mode === 'down') return Math.floor(price / tick) * tick;
   return Math.round(price / tick) * tick;
 }
+
+
+/** Adapt the verified, bounded local All Indy / EBW-Fibo replay records into
+ * the unified engine schema. This is a lossless adapter: it maps source fields
+ * and does NOT invent OB/QML/Flip zones or label unknown evidence as present. */
+function afUnifiedMapZone_(z,allZones){
+  if(!z||![1,-1].includes(Number(z.side))||![z.lo,z.hi,z.score,z.tests,z.atr,z.knownAt].every(function(x){return typeof x==='number'&&Number.isFinite(x);}))return null;
+  var peers=(allZones||[]).filter(function(p){return p&&p!==z&&p.family==='SD'&&Number(p.side)===Number(z.side)&&p.tf!==z.tf&&Number(p.lo)<=Number(z.hi)&&Number(p.hi)>=Number(z.lo);});
+  var tfSec=Number(z.tfSec||Number(z.tfMs||0)/1000)||900;
+  var maxTfSec=peers.reduce(function(v,p){return Math.max(v,Number(p.tfSec)||Number(p.tfMs||0)/1000||tfSec);},tfSec);
+  var tags={source:!!z.source,clean:!!z.clean,struct:!!z.structure,disp:Number(z.departure||0)>=0.75,liq:!!z.sweep,nested:peers.length>0,pd:!!z.pd};
+  return Object.assign({},z,{family:'SD',sourceTag:!!z.source,tfSec:tfSec,maxTfSec:maxTfSec,tfCount:1+peers.length,
+    isDefendCore:true,isLiquidityOnly:false,historyComplete:z.historyComplete!==false,departed:true,
+    sourceAtr:Number(z.atr),departureATR:Number(z.departure||0),hasSource:tags.source,hasClean:tags.clean,
+    hasStruct:tags.struct,hasDisp:tags.disp,hasSweep:tags.liq,hasNested:tags.nested,tags:tags});
+}
+function afUnifiedMapLiquidity_(l,tf,index){
+  if(!l||![1,-1].includes(Number(l.side))||!Number.isFinite(Number(l.price))||!Number.isFinite(Number(l.knownAt)))return null;
+  var price=Number(l.price),side=Number(l.side);
+  return {id:'LIQ:'+tf+':'+String(l.knownAt)+':'+String(index),tf:tf,tfSec:Number(String(tf).replace('m',''))*60||900,
+    side:side,lo:price,hi:price,price:price,score:0,tests:0,knownAt:Number(l.knownAt),atr:Number(l.atr)||0,
+    family:'LIQ',role:'LIQUIDITY',isLiquidityOnly:true,isDefendCore:false,historyComplete:true};
+}
+function afUnifiedMapFibo_(f,tf,spot){
+  if(!f||![1,-1].includes(Number(f.side)))return null;
+  var targets=Array.isArray(f.targets)?f.targets:[],side=Number(f.side);
+  var pending=targets.filter(function(t){return t&&t.pending===true&&Number.isFinite(Number(t.ratio))&&Number.isFinite(Number(t.price))&&side*(Number(t.price)-spot)>0;})
+    .sort(function(a,b){return side*(Number(a.price)-Number(b.price));});
+  var byRatio={};targets.forEach(function(t){if(t&&Number.isFinite(Number(t.ratio))&&Number.isFinite(Number(t.price)))byRatio[Number(t.ratio).toFixed(3)]=Number(t.price);});
+  return Object.assign({},f,{tf:tf,tfSec:Number(f.tfSec)||Number(f.tfMs||0)/1000||900,zeroPrice:Number(f.zero),
+    invalidated:!!f.invalidated,historyComplete:f.historyComplete!==false,nextPendingTarget:pending.length?Number(pending[0].price):null,
+    target1618:byRatio['1.618']||null,target2618:byRatio['2.618']||null,target4236:byRatio['4.236']||null,
+    stage:f.stage, cPrice:f.cPrice||f.anchors&&f.anchors.c&&f.anchors.c.p, bPrice:f.bPrice||f.anchors&&f.anchors.b&&f.anchors.b.p});
+}
+function afUnifiedPrepareContext_(ctx,market){
+  var rawZones=Array.isArray(ctx.zones)?ctx.zones:[],mapped=rawZones.map(function(z){return Object.assign({},z,{tfSec:Number(z.tfSec)||Number(z.tfMs||0)/1000||900,family:'SD'});});
+  var defend=mapped.map(function(z){return afUnifiedMapZone_(z,mapped);}).filter(Boolean),all=defend.slice();
+  Object.keys(ctx.frames||{}).forEach(function(tf){var rows=ctx.frames[tf]&&ctx.frames[tf].liquidity||[];rows.forEach(function(l,i){var v=afUnifiedMapLiquidity_(l,tf,i);if(v)all.push(v);});});
+  var spot=market&&Number.isFinite(market.bid)?market.bid:ctx.quote&&ctx.quote.bid||0;
+  var fibos=(ctx.fibos||[]).map(function(f){var owner=Object.keys(ctx.frames||{}).find(function(tf){return Number(ctx.frames[tf].tfMs)===Number(f.tfMs);})||f.tf||'15m';return afUnifiedMapFibo_(f,owner,spot);}).filter(Boolean);
+  return {zones:all,fibos:fibos,defendZones:defend};
+}
+function afUnifiedCandidateList_(ctx,market,chartAtr){
+  var p=afUnifiedPrepareContext_(ctx,market),out=[];
+  p.defendZones.forEach(function(z){try{
+    var plan=buildUnifiedCandidatePlan_(z,p.zones,p.fibos,market,chartAtr);
+    if(!plan)return;
+    // A lone zone without a compatible Fibo book is not a trade Candidate;
+    // source-pair availability and a per-side gate code remain in the audit snapshot.
+    if(!plan.fiboSynergy||plan.fiboSynergy.matched!==true)return;
+    var zoneId=plan.zoneId||z.id||null,fiboId=plan.fiboSynergy&&plan.fiboSynergy.fiboId||null,mode=plan.setupMode||'NONE';
+    var id='UNI:'+mode+':'+String(zoneId||'UNKNOWN')+':'+(Number(z.side)===1?'BUY':'SELL');
+    var geom=plan.geom||{},targets=plan.targets||{};
+    out.push({id:id,stableKey:id,side:Number(z.side),sideStr:Number(z.side)===1?'BUY':'SELL',entry:geom.entry==null?null:geom.entry,
+      stop:geom.sl==null?null:geom.sl,sl:geom.sl==null?null:geom.sl,target:targets.tp==null?null:targets.tp,tp:targets.tp==null?null:targets.tp,
+      netR:targets.netRR==null?null:targets.netRR,risk:geom.risk==null?null:geom.risk,eligible:!!plan.valid,
+      evidenceScore:plan.meta&&Number.isFinite(plan.meta.effectiveScore)?plan.meta.effectiveScore:Number(z.score)||0,setupMode:mode,zoneId:zoneId,fiboId:fiboId,
+      zoneTF:z.tf||null,fiboTF:plan.fiboSynergy&&plan.fiboSynergy.fiboTf||null,meta:plan.meta||null,geom:geom,targets:targets,
+      evidence:{candidateId:id,stableKey:id,zoneId:zoneId,fiboId:fiboId,zoneTF:z.tf||null,fiboTF:plan.fiboSynergy&&plan.fiboSynergy.fiboTf||null,
+        policyVersion:'AF-UNIFIED-1.0',qcThreshold:65,setupMode:mode,meta:plan.meta||null,geom:geom,targets:targets,fibo:plan.fiboSynergy||null},gateCodes:plan.valid?[]:[plan.reason||'AF_UNIFIED_REJECTED']});
+  }catch(e){out.push({id:'UNI:ERROR:'+String(z.id||''),side:z.side,zoneId:z.id,eligible:false,gateCodes:['AF_UNIFIED_CANDIDATE_ERROR']});}});
+  return out;
+}

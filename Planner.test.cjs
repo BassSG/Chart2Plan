@@ -8,7 +8,7 @@ function runtime(provider=false){
  let now=START;class Clock extends Date{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}
  const c=vm.createContext({Date:Clock,console});
  if(!provider)c.AF_PROVIDER_RUN={responses:{},quote:null,metadata:null};
- for(const name of ['Market.gs','Allindy.gs','Fibo.gs',...(provider?['Provider.gs']:[]),'Planner.gs','Workflow.gs'])
+ for(const name of ['Market.gs','Allindy.gs','Fibo.gs','AfUnifiedPlannerEngine.gs',...(provider?['Provider.gs']:[]),'Planner.gs','Workflow.gs'])
   vm.runInContext(fs.readFileSync(path.join(root,name),'utf8'),c,{filename:name});
  c.setNow=n=>{now=n;};return c;
 }
@@ -288,7 +288,7 @@ test('empty zone/Fibo/no same-side pair reasons and per-side availability in wor
  for(const [kind,reason] of [['zones','AF_NO_ZONE_EVIDENCE'],['fibos','AF_NO_FIBO_EVIDENCE'],
   ['both','AF_NO_ZONE_OR_FIBO_EVIDENCE'],['opposite','AF_NO_SAME_SIDE_PAIR']]){
   const x=fixture();if(kind==='zones'||kind==='both')x.zones=[];if(kind==='fibos'||kind==='both')x.fibos=[];
-  if(kind==='opposite'){x.zones=x.zones.filter(z=>z.side===1);x.fibos=x.fibos.filter(f=>f.side===-1);}
+  if(kind==='opposite'){x.zones=x.zones.filter(z=>z.side===1);x.fibos=x.fibos.filter(f=>f.side===-1);x.fibos.forEach(f=>f.targets.forEach(t=>{t.price=80;}));}
   const {r,c,count}=workflow({ctx:x});assert.equal(r.status,'NO_TRADE');assert.equal(r.audit.reasonCode,reason);
   assert.equal(r.audit.candidates.length,0);assert.equal(count.ai,0);
   const n=r.audit.snapshot.evidenceCounts;assert.equal(n.zones.total,x.zones.length);assert.equal(n.fibos.total,x.fibos.length);
@@ -406,8 +406,11 @@ test('postChecks attempted ID uses only valid admitted known selection; selected
 test('postChecks leaves complete pre-AI snapshot/candidates immutable for accepted and rejected runs',()=>{
  for(const opts of [{},{sell:true},{quoteAfter:{ask:100.3,spread_price:.3}},{quoteAfter:{bid:101,ask:101.1}},
   {newsAfter:{ok:false,canTrade:false}},{quoteError:'MT5_QUOTE_NOT_FRESH_OR_VALID',postQuoteError:true},{delay:121000}]){
-  const c=runtime(),x=fixture(),expectedCandidates=copy(build(c,x)),expectedSnapshot=copy(c.afPlannerSnapshot_(x,c.afPlannerQc_(null)));
-  const {r}=workflow(Object.assign({ctx:x},opts));assert.deepEqual(copy(r.audit.candidates),expectedCandidates);
+  const c=runtime(),x=fixture(),expectedLegacy=copy(build(c,x)),expectedSnapshot=copy(c.afPlannerSnapshot_(x,c.afPlannerQc_(null)));
+  const expectedUnified=copy(c.afUnifiedCandidateList_(x,{mintick:.01,totalCost:x.quote.spread+.02,bid:x.quote.bid,ask:x.quote.ask,chartSec:300},x.frames['5m'].atr));
+  const {r}=workflow(Object.assign({ctx:x},opts));
+  assert.deepEqual(copy(r.audit.candidates.filter(v=>!String(v.id).startsWith('UNI:'))),expectedLegacy);
+  assert.deepEqual(copy(r.audit.candidates.filter(v=>String(v.id).startsWith('UNI:'))),expectedUnified);
   assert.deepEqual(copy(r.audit.snapshot),expectedSnapshot);assert.ok(r.audit.candidates.every(v=>v.evidence.postQuote===undefined));
  }
 });

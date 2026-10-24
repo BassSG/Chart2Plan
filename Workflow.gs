@@ -26,10 +26,14 @@ function afBuildAnalystContext_(tradeType,verifiedQuote){
    closedOHLC:bars.slice(-3000).map(function(b){return [b.openTime,b.closeTime,b.open,b.high,b.low,b.close,b.volume||0];})};
   var zs=afZoneReplay_(bars,tfMs,.01,last.closeTime),z=zs[zs.length-1];
   // ALL live zones/liquidity retained as obstacles, including low-score/tested ones.
-  z.zones.forEach(function(q){zoneBook.push(Object.assign({},q,{tf:tf,sourceClose:z.sourceClose,
+  z.zones.forEach(function(q){zoneBook.push(Object.assign({},q,{tf:tf,tfSec:tfMs/1000,sourceClose:z.sourceClose,
+   family:'SD',isDefendCore:true,sourceAtr:q.atr,departureATR:q.departure||0,hasSource:!!q.source,hasClean:!!q.clean,
+   hasStruct:!!q.structure,hasDisp:Number(q.departure||0)>=.75,hasSweep:!!q.sweep,hasNested:false,
+   tags:{source:!!q.source,clean:!!q.clean,struct:!!q.structure,disp:Number(q.departure||0)>=.75,liq:!!q.sweep,nested:false},
    sourceVersion:'All-Indy-1.3.5',adapter:'afZoneReplay_',adapterVersion:null}));});frames[tf].liquidity=z.liquidity;
   if(tf!=='1m'){var f=afFiboReplay_(bars,tfMs),fLast=f.snapshots[f.snapshots.length-1];
-   fLast.records.forEach(function(r){fibBook.push(Object.assign({},r,{tf:tf,adapter:'afFiboReplay_'}));});}
+   fLast.records.forEach(function(r){fibBook.push(Object.assign({},r,{tf:tf,tfSec:tfMs/1000,adapter:'afFiboReplay_'}));});
+   (fLast.forms||[]).forEach(function(r){fibBook.push(Object.assign({},r,{tf:tf,tfSec:tfMs/1000,adapter:'afFiboForm_',stage:1}));});}
  });
  return {asOf:asOf,symbol:'XAUUSD',sourceId:'Eightcap-MT5-Live',style:tradeType,executionTF:style.execution,contextTF:style.context,
   quote:{bid:quote.bid,ask:quote.ask,spread:quote.spread_price,timestamp:quote.timestamp,market_status:quote.market_status,weekend_test_mode:quote.weekend_test_mode,priceBasis:'Bid candles; current quote includes Ask'},
@@ -129,13 +133,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   audit.stage='PLANNER';
   var chartAtr=context.frames[context.executionTF]?context.frames[context.executionTF].atr:1.0;
   var marketSpec={mintick:0.01,totalCost:(preQuote.spread_price||0.24)+0.02,bid:context.quote.bid,ask:context.quote.ask,chartSec:(AF_PLANNER_TF[context.executionTF]||900000)/1000};
-  var unifiedPlans=[];
-  (context.zones||[]).forEach(function(z){
-    try{var p=buildUnifiedCandidatePlan_(z,context.zones,context.fibos,marketSpec,chartAtr);if(p)unifiedPlans.push(p);}catch(_){}
-  });
-  var unifiedCandidates=unifiedPlans.map(function(p){
-    return {id:'UNI:'+p.setupMode+':'+p.zoneId+':'+p.side,side:p.side==='BUY'?1:-1,sideStr:p.side,entry:p.geom.entry,stop:p.geom.sl,sl:p.geom.sl,target:p.targets.tp,tp:p.targets.tp,netR:p.targets.netRR,risk:p.geom.risk,eligible:p.valid,setupMode:p.setupMode,meta:p.meta,geom:p.geom,targets:p.targets,evidence:{candidateId:'UNI:'+p.setupMode+':'+p.zoneId+':'+p.side,zoneId:p.zoneId,setupMode:p.setupMode,meta:p.meta,geom:p.geom,targets:p.targets,fibo:p.fiboSynergy,qcThreshold:quality.threshold||65},gateCodes:p.valid?[]:[p.reason]};
-  });
+  var unifiedCandidates=afUnifiedCandidateList_(context,marketSpec,chartAtr);
   var standardCandidates=afPlannerBuild_(context,quality,Date.now());
   var allCandidates=unifiedCandidates.concat(standardCandidates);
   var eligibleCandidates=allCandidates.filter(function(c){return c.eligible;});

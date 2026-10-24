@@ -42,7 +42,9 @@ function afFiboReplay_(bars,tfMs){
   else if(bu||be){var side=bu?1:-1,f=forms[side],r={sourceVersion:'EBW-Fibo-1.10.19',adapterVersion:'AF-FORM-CONTEXT-0.2',symbol:'XAUUSD',tfMs:tfMs,knownAt:bar.closeTime,sourceClose:bar.closeTime,born:bar.openTime,zero:f.c.p,span:f.b.p-f.c.p,root:roots[side].origin,side:side,method:f.neck?3:1,neck:!!f.neck,broken:true,invalidated:false,historyComplete:i>=50,id:tfMs+':'+f.c.t,hitRatios:[],anchors:{a:f.a,b:f.b,c:f.c}};
     afBookTakeover_(records,f,bar.closeTime);afBookAdvance_(r,side===1?bar.high:bar.low,bar.closeTime);if(afBookAdd_(records,r))stats.breaks++;used[side]=f.c.cycle;forms[side]=null;
   }
-  snapshots.push({sourceClose:bar.closeTime,knownAt:bar.closeTime,momentumContext:afCopy_(ctx),records:records.map(function(r){var x=afCopy_(r);x.targets=afBookTargets_(x);return x;})});
+  snapshots.push({sourceClose:bar.closeTime,knownAt:bar.closeTime,momentumContext:afCopy_(ctx),
+   records:records.map(function(r){var x=afCopy_(r);x.targets=afBookTargets_(x);return x;}),
+   forms:Object.keys(forms).map(function(k){var f=forms[k];if(!f)return null;return {id:tfMs+':FORM:'+f.c.t+':'+f.side,sourceVersion:'EBW-Fibo-1.10.19',adapterVersion:'AF-FORM-CONTEXT-0.2',symbol:'XAUUSD',tfMs:tfMs,side:f.side,stage:1,broken:false,invalidated:false,historyComplete:i>=50,zero:f.c.p,cPrice:f.c.p,bPrice:f.b.p,neck:!!f.neck,held:!f.neck,knownAt:bar.closeTime,sourceClose:bar.closeTime,born:f.c.t,anchors:{a:f.a,b:f.b,c:f.c}};}).filter(Boolean)});
  }
  return {snapshots:snapshots,stats:stats};
 }
