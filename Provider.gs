@@ -72,7 +72,7 @@ function afMt5Quote_() {
   const now=Date.now()/1000;
   if(AF_PROVIDER_RUN.quote && now-AF_PROVIDER_RUN.quote.fetchedAt<15)return AF_PROVIDER_RUN.quote;
   const q=afMt5Json_('/api/quote'),t=Number(q.timestamp),bid=Number(q.bid),ask=Number(q.ask),sp=Number(q.spread_price),point=Number(q.point);
-  const isClosed=q.market_status==='closed'||q.is_market_open===false||q.feed_status==='stale';
+  const isClosed=q.market_status==='closed'||q.is_market_open===false;
   if(q.symbol!=='XAUUSD'||q.source_id!=='Eightcap-MT5-Live'||q.connection_status!=='connected'||
      (!isClosed && (q.quote_usable!==true||q.feed_status!=='fresh'||q.market_status!=='open'||now-t<-2||now-t>120))||
      !Number.isSafeInteger(t)||afMt5Utc_(q.date)!==t||afMt5Utc_(q.datetime_utc)!==t||

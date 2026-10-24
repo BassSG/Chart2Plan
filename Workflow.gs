@@ -268,9 +268,11 @@ function afResearchDiagnostics(tradeType,symbol,qc){
   audit.stage='QUOTE_PRE';AF_PROVIDER_RUN.quote=null;var preQuote=afPlannerQuote_();
   audit.stage='DATA_PRE';var ctx=afBuildAnalystContext_(style,preQuote);audit.snapshot=afPlannerSnapshot_(ctx,quality);
   var gate=afPlannerContextGate_(ctx,Date.now());if(gate)throw Error(gate);
-  audit.stage='PLANNER';audit.candidates=afPlannerBuild_(ctx,quality,Date.now());
-  audit.reasonCode=audit.candidates.some(function(c){return c.eligible;})?'AF_ELIGIBLE_CANDIDATES':afPlannerNoCandidateReason_(audit.snapshot,audit.candidates);
+  audit.stage='PLANNER';var unified=afUnifiedCandidateList_(ctx,{mintick:0.01,totalCost:preQuote.spread_price+0.02,bid:preQuote.bid,ask:preQuote.ask,chartSec:(AF_PLANNER_TF['5m']||300000)/1000},ctx.frames['5m'].atr);
+  var legacy=afPlannerBuild_(ctx,quality,Date.now());audit.candidates=unified.concat(legacy);
+  audit.reasonCode=audit.candidates.some(function(c){return c.eligible;})?'AF_ELIGIBLE_CANDIDATES':afPlannerNoCandidateReason_(audit.snapshot,legacy);
   audit.gateCodes=audit.snapshot.evidenceCounts.gateCodes.slice();
+  unified.forEach(function(c){(c.gateCodes||[]).forEach(function(g){if(audit.gateCodes.indexOf(g)<0)audit.gateCodes.push(g);});});
   if(audit.reasonCode!=='AF_ELIGIBLE_CANDIDATES'&&audit.gateCodes.indexOf(audit.reasonCode)<0)audit.gateCodes.unshift(audit.reasonCode);
   return finish(true,'DIAGNOSTICS_READY');
  }catch(e){audit.reasonCode=afWorkflowFailureCode_(e);audit.gateCodes=[audit.reasonCode];return finish(false,afWorkflowStatus_(audit.reasonCode));}
