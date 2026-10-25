@@ -51,7 +51,7 @@ try{
   if($LASTEXITCODE -ne 0){throw 'Clasp push failed'}
  }
  if($Deploy){
-  & clasp deploy --deploymentId $afDeploymentId --description 'Reliable PAPER monitoring independent of Push; bounded pre-AI retries; health and deadline views'
+  & clasp deploy --deploymentId $afDeploymentId --description 'Live plan status keyed by Plan Key; local expiry updates; bounded deferred hourly retries'
   if($LASTEXITCODE -ne 0){throw 'Clasp deploy failed'}
  }
 }finally{Pop-Location}

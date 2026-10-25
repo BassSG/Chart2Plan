@@ -393,4 +393,13 @@ test('automatic plan dashboard skips audit bodies and keeps identical plan state
  const light=e.c.afResearchDashboard('owner',false);assert.equal(light.plans.length,1);assert.equal(light.audits.length,0);assert.ok(!refs.includes(saved.auditRef));assert.equal(e.fetches,0);
  const full=e.c.afResearchDashboard('owner');assert.equal(full.audits.length,1);assert.deepEqual(plain(light.plans),plain(full.plans));assert.deepEqual(plain(light.counts),plain(full.counts));
 });
+test('initialized dashboard reads never acquire the analysis or monitor write lock',()=>{
+ const e=env();e.record();const before=e.acquires;e.c.afResearchDashboard('owner');e.c.afResearchDashboard('owner',false);assert.equal(e.acquires,before);assert.equal(e.fetches,0);
+});
+test('new and deduplicated audit writes invalidate the read-only status cache',()=>{
+ const e=env(),versions=[],set=e.c.PropertiesService.getScriptProperties;
+ e.c.PropertiesService.getScriptProperties=()=>{const p=set();return {...p,setProperty(k,v){if(k==='AF_PAPER_STATUS_VERSION')versions.push(v);return p.setProperty(k,v);}};};
+ const saved=e.record(),before=versions.length;assert.ok(before>=2);const again=response();again.runId='run2';const duplicate=e.record(again);assert.equal(duplicate.planKey,saved.planKey);assert.equal(duplicate.deduplicated,true);assert.equal(versions.length,before+1);
+});
 console.log('\n'+passed+' offline ResearchLog tests passed. No live provider or broker assertions.');
+

@@ -1,5 +1,5 @@
 <script>
-/* UI state only: one existing GAS request, no polling or automatic AI retries. */
+/* Analysis is user initiated. Read-only status polling never calls AI. */
 const PREMIUM_UI_VERSION = 'ALPHASENSE-PREMIUM-20261006-v1';
 const premiumRun = {busy:false, startedAt:0, timer:null, focus:null, request:0, previous:null};
 const premiumWork = {owner:null,label:''};
@@ -158,16 +158,35 @@ function premiumRenderOriginalDetails(raw) {
     '<details class="premium-original-raw"><summary>ดูข้อความดิบแบบเดิม · รวมบรรทัดว่างและรูปแบบเดิมครบ</summary><pre>'+e(raw)+'</pre></details></div></details>';
 }
 const premiumPaperViews={};
-function premiumUpdatePaperViews(plans){
-  plans.forEach(p=>{if(p.runId&&p.view)premiumPaperViews[p.runId]=p.view;});
-  if(typeof analysisHistory!=='undefined'&&typeof currentHistoryIndex!=='undefined'&&analysisHistory[currentHistoryIndex]&&document.getElementById('result'))premiumDisplayRecord(analysisHistory[currentHistoryIndex]);
+const premiumPlanViews={},premiumRunPlans={};
+let premiumDisplayedView='';
+function premiumUpdatePaperViews(plans,aliases){
+  Object.entries(aliases||{}).forEach(([run,key])=>{premiumRunPlans[run]=key;});
+  plans.forEach(p=>{if(!p.runId||!p.view)return;const key=p.planKey||p.view.planKey,prior=key?premiumPlanViews[key]:premiumPaperViews[p.runId];
+    if(prior&&Number(prior.revision||0)>Number(p.revision||p.view.revision||0))return;
+    const view={...p.view,revision:p.revision||p.view.revision||0,planKey:key||null};
+    premiumPaperViews[p.runId]=view;if(key){premiumRunPlans[p.runId]=key;premiumPlanViews[key]=view;}
+  });
+  premiumRefreshPaperClock();
 }
 function premiumPaperView(item){
-  const source=premiumPaperViews[item.runId]||item.runFacts?.paperView;if(!source)return null;
+  const key=item.runFacts?.paperPlanKey||item.runFacts?.paperView?.planKey||premiumRunPlans[item.runId];
+  const sources=[key&&premiumPlanViews[key],premiumPaperViews[item.runId],item.runFacts?.paperView].filter(Boolean);
+  sources.sort((a,b)=>Number(b.revision||0)-Number(a.revision||0));const source=sources[0];if(!source)return null;
   const v={...source};
   if(v.paperState==='PENDING'&&Number.isFinite(v.expiresAt)&&Date.now()>=v.expiresAt){v.awaitingData=true;v.entryAllowed=false;v.label='พ้นเวลารอเข้า — รอข้อมูลยืนยันผล';}
   if(v.paperState==='ACTIVE'&&Number.isFinite(v.holdUntil)&&Date.now()>=v.holdUntil){v.awaitingData=true;v.entryAllowed=false;v.label='ครบเวลาถือ — รอข้อมูลยืนยันผล';}
   return v;
+}
+function premiumRefreshPaperClock(){
+  if(document.hidden)return;
+  if(!premiumRun.busy&&typeof analysisHistory!=='undefined'&&typeof currentHistoryIndex!=='undefined'){
+    const item=analysisHistory[currentHistoryIndex];
+    if(item&&document.getElementById('result')){const signature=JSON.stringify(premiumPaperView(item));
+      if(signature!==premiumDisplayedView)premiumDisplayRecord(item,true);}
+  }
+  if(typeof window!=='undefined'&&typeof window.afRefreshTriggerClock==='function')window.afRefreshTriggerClock();
+  if(typeof window!=='undefined'&&typeof window.afResearchRefreshPaperClock==='function')window.afResearchRefreshPaperClock();
 }
 function premiumRunFacts(response) {
   const a=response?.audit||{},stage=String(a.stage||''),status=String(response?.status||'');
@@ -176,7 +195,7 @@ function premiumRunFacts(response) {
   const cost=premiumNumber(response?.cost),usage=response?.usage||{};
   const received=!!a.postChecks?.startedAt||status==='PAPER_SIGNAL_READY'&&response?.success===true||cost!==null||Object.values(usage).some(v=>typeof v==='number'&&v>0);
   let aiState=response?.aiCalled===false||status==='DATA_BUSY'||early.includes(stage)?'not_called':received?'completed':'unknown';
-  return {aiState,paperView:response?.auditRecord?.view||null,candidateCount:candidates?candidates.length:null,eligibleCount:candidates?candidates.filter(c=>c.eligible===true).length:null,
+  return {aiState,paperPlanKey:response?.auditRecord?.planKey||null,paperView:response?.auditRecord?.view||null,candidateCount:candidates?candidates.length:null,eligibleCount:candidates?candidates.filter(c=>c.eligible===true).length:null,
     selectedCandidateId:a.selectedCandidateId||null,weekendTest:a.snapshot?.quote?.weekend_test_mode===true,
     sharedSaveState:response?.sharedSave?.state||null,sharedUrl:/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+\/edit#gid=\d+(?:&range=A\d+)?$/.test(response?.sharedSave?.url||'')?response.sharedSave.url:null};
 }
@@ -232,8 +251,11 @@ function premiumHistoryCount() {
   const count=document.getElementById('premiumHistoryCount');
   if (count) count.textContent=analysisHistory.length ? (currentHistoryIndex+1)+' / '+analysisHistory.length : '';
 }
-function premiumDisplayRecord(item) {
-  document.getElementById('result').innerHTML=premiumRenderRecord(item);
+function premiumDisplayRecord(item,preserveDetails) {
+  const result=document.getElementById('result'),open=preserveDetails&&result.querySelectorAll?Array.from(result.querySelectorAll('details')).map(d=>d.open):[];
+  result.innerHTML=premiumRenderRecord(item);
+  if(preserveDetails&&result.querySelectorAll)Array.from(result.querySelectorAll('details')).forEach((d,i)=>{d.open=!!open[i];});
+  premiumDisplayedView=JSON.stringify(premiumPaperView(item));
   document.getElementById('modelName').textContent=item.model || '—';
   document.getElementById('copyBtn').disabled=false;
   premiumHistoryCount();
@@ -325,6 +347,8 @@ function premiumUpdateClock() {
 }
 document.addEventListener('DOMContentLoaded',()=>{
   premiumUpdateClock(); setInterval(premiumUpdateClock,30000);
+  setInterval(premiumRefreshPaperClock,1000);
+  document.addEventListener('visibilitychange',premiumRefreshPaperClock);
   loadRememberedCredentials();
   ['loginUsername','loginPassword'].forEach(id=>document.getElementById(id).addEventListener('keydown',event=>{
     if(event.key==='Enter' && !document.getElementById('loginBtn').disabled) {event.preventDefault(); handleLogin();}
@@ -340,3 +364,4 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Independent GAS app: no messages to the production wrapper.
 });
 </script>
+

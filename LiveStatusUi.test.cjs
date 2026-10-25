@@ -1,0 +1,28 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+function env(){
+ let now=Date.parse('2026-10-25T05:00:00Z'),rpc=0;const nodes={},events={},intervals=[],requests=[];
+ const detail=[{open:true},{open:false}];
+ function node(){return {innerHTML:'',textContent:'',disabled:false,value:'daytrade',checked:true,options:[],dataset:{},style:{},classList:{contains:()=>false},setAttribute(){},appendChild(){},addEventListener(name,fn){this[name]=fn;},querySelector:()=>({textContent:''}),querySelectorAll:()=>detail};}
+ const document={readyState:'loading',hidden:false,addEventListener(name,fn){(events[name]??=[]).push(fn);},getElementById:id=>nodes[id]||(nodes[id]=node()),querySelector:()=>node(),querySelectorAll:()=>[],createElement:()=>({...node(),querySelectorAll:()=>[]})};
+ class Clock extends Date{constructor(...a){super(...(a.length?a:[now]));}static now(){return now;}}
+ const c=vm.createContext({document,Date:Clock,Intl,console,Number,Array,JSON,String,Math,Object,analysisHistory:[],currentHistoryIndex:0,
+  setInterval:(fn,ms)=>intervals.push({fn,ms}),MutationObserver:class{observe(){}},loadRememberedCredentials(){},
+  google:{script:{get run(){let success,failure;return {withSuccessHandler(fn){success=fn;return this;},withFailureHandler(fn){failure=fn;return this;},afPaperStatus(...args){rpc++;requests.push({success,failure,args});}};}}}
+ });c.window=c;c.AF_SOLO_WORKSPACE={username:'owner-test'};
+ vm.runInContext(fs.readFileSync(__dirname+'/PremiumUi.html','utf8').replace(/^<script>\s*/,'').replace(/\s*<\/script>\s*$/,''),c);
+ vm.runInContext(fs.readFileSync(__dirname+'/ResearchUi.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1],c);
+ const item={runId:'AF:duplicate',raw:'TypeOrder: Sell Limit\nEntry: 100\nStopLoss: 110\nTP1: 80 (RR 2:1)',status:'PAPER_SIGNAL_READY',outcome:{kind:'pass'},runFacts:{aiState:'completed',paperPlanKey:'P:H:plan',paperView:{paperState:'PENDING',revision:1,expiresAt:now+60000,entryAllowed:true,awaitingData:false,label:'รอเข้า'}},createdAt:new Date(now).toISOString()};
+ c.analysisHistory.push(item);c.premiumDisplayRecord(item);events.DOMContentLoaded.forEach(fn=>fn());
+ return {c,nodes,document,events,intervals,requests,item,detail,time:t=>now=t,get now(){return now;},get rpc(){return rpc;}};
+}
+let n=0;const test=(name,fn)=>{fn();n++;console.log('PASS '+name);};
+test('the connected local timer changes an already-mounted card at expiry without RPC',()=>{const e=env(),calls=e.rpc;assert.match(e.nodes.result.innerHTML,/รอราคาถึงระดับนี้/);e.time(e.now+60000);e.intervals.find(t=>t.ms===1000).fn();assert.match(e.nodes.result.innerHTML,/พ้นเวลารอเข้า/);assert.equal(e.rpc,calls);assert.equal(e.detail[0].open,true);assert.equal(e.detail[1].open,false);});
+test('returning to a backgrounded page immediately recomputes its deadline',()=>{const e=env();e.document.hidden=true;e.time(e.now+60001);e.intervals.find(t=>t.ms===1000).fn();assert.doesNotMatch(e.nodes.result.innerHTML,/พ้นเวลารอเข้า/);e.document.hidden=false;e.events.visibilitychange.forEach(fn=>fn());assert.match(e.nodes.result.innerHTML,/พ้นเวลารอเข้า/);});
+test('one read-only status request stays in flight without overlapping minute polls',()=>{const e=env();assert.equal(e.rpc,1);const poll=e.intervals.find(t=>t.ms===60000).fn;poll();poll();assert.equal(e.rpc,1);e.requests[0].failure();poll();assert.equal(e.rpc,2);assert.match(e.nodes.afSharedStatus.textContent,/แสดงผลที่โหลดไว้ก่อนหน้า/);});
+test('a server terminal outcome updates all repeated analysis Run IDs sharing a Plan Key',()=>{const e=env();e.requests[0].success({success:true,asOf:e.now,plans:[{planKey:'P:H:plan',runId:'AF:original',revision:2,view:{planKey:'P:H:plan',paperState:'TP',revision:2,entryAllowed:false,awaitingData:false,label:'ถึงเป้า TP'}}],aliases:{'AF:duplicate':'P:H:plan'},sharedStatus:{enabled:true,health:'OK'}});assert.match(e.nodes.result.innerHTML,/ถึงเป้า TP/);assert.doesNotMatch(e.nodes.result.innerHTML,/รอราคาถึงระดับนี้/);});
+test('older local history is resolved through its audit alias even without a stored Plan Key',()=>{const e=env();delete e.item.runFacts.paperPlanKey;e.c.premiumUpdatePaperViews([{planKey:'P:H:plan',runId:'AF:original',revision:2,view:{paperState:'SL',revision:2,entryAllowed:false,label:'ถึงจุด SL'}}],{'AF:duplicate':'P:H:plan'});assert.match(e.nodes.result.innerHTML,/ถึงจุด SL/);});
+test('an older response cannot roll a newer plan revision back to PENDING',()=>{const e=env();e.c.premiumUpdatePaperViews([{planKey:'P:H:plan',runId:'AF:original',revision:3,view:{paperState:'TP',revision:3,entryAllowed:false,label:'ถึงเป้า TP'}}]);e.c.premiumUpdatePaperViews([{planKey:'P:H:plan',runId:'AF:original',revision:1,view:{paperState:'PENDING',revision:1,entryAllowed:true,label:'รอเข้า'}}]);assert.match(e.nodes.result.innerHTML,/ถึงเป้า TP/);});
+test('a freshly received analysis view outranks an older status cache',()=>{const e=env();e.c.premiumUpdatePaperViews([{planKey:'P:H:plan',runId:'AF:original',revision:1,view:{paperState:'PENDING',revision:1,entryAllowed:true,label:'รอเข้า'}}]);e.item.runFacts.paperView={planKey:'P:H:plan',paperState:'SL',revision:2,entryAllowed:false,label:'ถึงจุด SL'};e.c.premiumRefreshPaperClock();assert.match(e.nodes.result.innerHTML,/ถึงจุด SL/);});
+test('hidden pages and an active analysis do not start background status reads',()=>{const e=env();e.requests[0].failure();const poll=e.intervals.find(t=>t.ms===60000).fn;e.document.hidden=true;poll();assert.equal(e.rpc,1);e.document.hidden=false;vm.runInContext('premiumRun.busy=true',e.c);poll();assert.equal(e.rpc,1);});
+console.log('LiveStatusUi: '+n+' groups passed');

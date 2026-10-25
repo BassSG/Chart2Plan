@@ -98,18 +98,28 @@
     '<br>แท่งปิดล่าสุดที่อ่านได้: '+esc(time(v.lastCandleAt));
  }
  window.afResearchSharedStatus=sharedStatus;
- function renderDashboard(v){
-  lastResult=v;var c=v.counts||v.summary||v,t=v.today||{};
+ var lastDashboard=null,paperClockSignature='';
+ function renderPaperTable(v){
+  var c=v.counts||v.summary||v,t=v.today||{};
   var val=function(k){return c[k]==null?'—':c[k];};
   document.getElementById('afResearchPaper').innerHTML='<div class="af-research-metrics">'+
    metric('เข้าแผนจำลอง',val('Entry'))+metric('ถึงเป้า TP',val('TP1'))+metric('ถึงจุดตัดขาดทุน',val('SL'))+
    metric('ปิดครบเวลา',val('TIME_EXIT'))+metric('ต้องตรวจลำดับแท่ง',c.Review==null?c.REVIEW==null?'—':c.REVIEW:c.Review)+
    metric('เข้าแผนวันนี้',t.entries==null?'—':t.entries)+'</div>';
   if(Array.isArray(v.plans)){
-    if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(v.plans);
-    var rows=v.plans.slice(0,30).map(function(p){return '<tr><td>'+esc(side(p.side))+'</td><td>'+number(p.entry)+'</td><td>'+number(p.stop)+'</td><td>'+number(p.target)+'</td><td>'+esc(p.view?p.view.label:p.state)+'</td></tr>';}).join('');
+    var rows=v.plans.slice(0,30).map(function(p){var view=typeof premiumPaperView==='function'?premiumPaperView({runId:p.runId,runFacts:{paperPlanKey:p.planKey,paperView:p.view}}):p.view;return '<tr><td>'+esc(side(p.side))+'</td><td>'+number(p.entry)+'</td><td>'+number(p.stop)+'</td><td>'+number(p.target)+'</td><td>'+esc(view?view.label:p.state)+'</td></tr>';}).join('');
     if(rows)document.getElementById('afResearchPaper').innerHTML+='<div class="af-research-scroll"><table><thead><tr><th>ฝั่ง</th><th>Entry เดิม</th><th>SL</th><th>TP</th><th>สถานะปัจจุบัน</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   }
+ }
+ window.afResearchRefreshPaperClock=function(){
+  if(!lastDashboard)return;
+  var signature=JSON.stringify((lastDashboard.plans||[]).map(function(p){return typeof premiumPaperView==='function'?premiumPaperView({runId:p.runId,runFacts:{paperPlanKey:p.planKey,paperView:p.view}}):p.view;}));
+  if(signature===paperClockSignature)return;paperClockSignature=signature;renderPaperTable(lastDashboard);
+ };
+ function renderDashboard(v){
+  lastResult=v;lastDashboard=v;
+  if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(v.plans||[],v.aliases);
+  renderPaperTable(v);
   document.getElementById('afResearchPaperDetail').textContent=JSON.stringify(v,null,2);
   document.getElementById('afResearchDashboardStatus').textContent=v.message||'โหลดประวัติจากเซิร์ฟเวอร์แล้ว · ผลจำลองจากแท่ง Bid และสมมติฐาน spread';
   if(lastAnalysis)resultStatus(lastAnalysis,summarize(lastAnalysis));else status('โหลดประวัติจากเซิร์ฟเวอร์แล้ว · กดตรวจเงื่อนไขเพื่อดูแผนรอบใหม่');
@@ -152,13 +162,21 @@
    button.disabled=true;document.getElementById('afSharedStatus').textContent='กำลังเชื่อมชีตและเปิดตัวติดตาม · ไม่มีการเรียก AI';
    google.script.run.withSuccessHandler(function(v){button.disabled=false;if(typeof premiumReleaseWork==='function')premiumReleaseWork('shared-setup');sharedStatus(v);if(v.imported!=null)document.getElementById('afSharedStatus').textContent+=' · ซิงก์แผนเดิม '+v.imported+' แผน';}).withFailureHandler(function(){button.disabled=false;if(typeof premiumReleaseWork==='function')premiumReleaseWork('shared-setup');document.getElementById('afSharedStatus').textContent='เชื่อมไม่สำเร็จ กรุณาตรวจสิทธิ์ Google Sheets และระบบต้นทาง';}).afInitializeSharedSignals();
   });
+  var statusInFlight=false,lastStatusRequest=0;
   function refreshSharedHealth(){
-   if(document.hidden||busy)return;
-   google.script.run.withSuccessHandler(sharedStatus).withFailureHandler(function(){document.getElementById('afSharedStatus').textContent='ยังอ่านสถานะชีตร่วมไม่ได้';}).afSharedStatus();
+   if(document.hidden||busy||statusInFlight||typeof premiumRun!=='undefined'&&premiumRun.busy||typeof premiumWork!=='undefined'&&premiumWork.owner!==null)return;
+   statusInFlight=true;lastStatusRequest=Date.now();
+   var history=typeof analysisHistory==='undefined'?[]:analysisHistory.slice(-50),keys=history.map(function(x){return x.runFacts?.paperPlanKey||x.runFacts?.paperView?.planKey;}).filter(Boolean),runs=history.map(function(x){return x.runId;}).filter(Boolean);
+   google.script.run.withSuccessHandler(function(v){
+    statusInFlight=false;sharedStatus(v.sharedStatus||v);
+    if(v.success){if(typeof window.afApplyPaperStatus==='function')window.afApplyPaperStatus(v);else if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(v.plans||[],v.aliases);
+     if(lastDashboard){lastDashboard=v;renderPaperTable(v);document.getElementById('afResearchDashboardStatus').textContent='อัปเดตสถานะล่าสุด '+new Date(v.asOf).toLocaleTimeString('th-TH',{timeZone:'Asia/Bangkok'})+' · อ่านผลที่บันทึกไว้';}}
+   }).withFailureHandler(function(){statusInFlight=false;document.getElementById('afSharedStatus').textContent='ยังอ่านสถานะล่าสุดไม่ได้ · แสดงผลที่โหลดไว้ก่อนหน้า';}).afPaperStatus(user(),keys,runs);
   }
   refreshSharedHealth();
-  // Read-only Script Properties heartbeat. No replay, Sheet reads, or AI calls.
+  // Read-only committed-state polling. No replay or AI; no global write lock.
   setInterval(refreshSharedHealth,60000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&Date.now()-lastStatusRequest>=60000)refreshSharedHealth();});
   document.getElementById('afResearchExport').addEventListener('click',function(){
    if(!lastResult){status('ยังไม่มีผลตรวจสำหรับดาวน์โหลด');return;}
    var blob=new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -176,3 +194,4 @@
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();
 </script>
+

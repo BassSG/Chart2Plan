@@ -18,8 +18,7 @@ function getCurrentPrices(){afAssertSandbox_();try{AF_PROVIDER_RUN.quote=null;va
 function manageTriggers(action,user){
  afRequireUser_(user);if(action==='deleteAll')return afCancelPaperMany_(user,null);
  if(action!=='getAll')return {success:false,message:'ไม่รองรับคำสั่งนี้'};
- var dashboard=afResearchDashboard(user,false);
- return {success:true,plans:dashboard.plans.slice(0,100),triggers:dashboard.plans.filter(function(p){return ['PENDING','ACTIVE','REVIEW'].includes(p.state);}).map(function(p){return {alertId:p.planKey,symbol:p.symbol,type:p.side===1?'Buy Limit':'Sell Limit',alertType:'Paper '+p.state,targetPrice:p.entry,status:p.state==='REVIEW'||p.view.awaitingData?'Review':'Active',statusLabel:p.view.label,entryAllowed:p.view.entryAllowed,paperState:p.state};}),mode:'TEST',realBroker:false};
+ return afPaperStatus(user);
 }
 function afCancelPaperMany_(user,ids){
  afRequireUser_(user);return afResearchLock_(function(){var book=afResearchBookLocked_(),plans=afPaperLatest_(book,afResearchHash_(user)),cancelled=0,kept=0;
@@ -40,3 +39,4 @@ function afLogAnalysis_(response,request){
 }
 function afStoreResponse_(response,request){try{afLogAnalysis_(response,request);return response;}catch(_){return Object.assign({},response,{success:false,status:'SAVE_FAILED_OR_PARTIAL',plan:null,message:'ยังยืนยันการบันทึกใน Sheet ไม่ได้ อาจบันทึกได้บางส่วน กรุณาตรวจ Run ID ก่อนวิเคราะห์ซ้ำ\n'+response.message});}}
 function afDeleteOwnData(user,confirmation){afRequireUser_(user);if(confirmation!=='DELETE_MY_TEST_DATA')return {success:false,message:'กรุณายืนยันการล้างข้อมูลทดสอบ'};['Analysis','Plans'].forEach(function(name){var s=afEnsureWorkspace_().getSheetByName(name),rows=s.getDataRange().getValues(),col=name==='Analysis'?2:1;for(var i=rows.length-1;i>0;i--)if(rows[i][col]===user)s.deleteRow(i+1);});return {success:true,message:'ล้างข้อมูลทดสอบเฉพาะโปรเจกต์ใหม่แล้ว'};}
+

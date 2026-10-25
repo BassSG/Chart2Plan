@@ -1243,10 +1243,34 @@ async function copyResult (){
       try {google.script.run
         .withSuccessHandler(function(response) {
           releaseAlerts();
+          if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(response.plans||[],response.aliases);
+          renderPaperTriggers(response);
+        })
+        .withFailureHandler(function(error) {
+          releaseAlerts();
+          console.error("Load Triggers Error:", error);
+          document.getElementById('premiumAlertCount').textContent = 'โหลดไม่สำเร็จ';
+          tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">เกิดข้อผิดพลาด: ${premiumEscape(error.message)}</td></tr>`;
+          Swal.fire('ผิดพลาดรุนแรง', 'เกิดข้อผิดพลาดในการดึงข้อมูล Trigger: ' + error.message, 'error');
+        })
+        .manageTriggers('getAll', currentUser);
+      }catch(error){releaseAlerts();tableBody.innerHTML='<tr><td colspan="7">ยังโหลดสถานะแผนไม่ได้ กรุณาลองใหม่</td></tr>';}
+    }
+
+    var afTriggerSnapshot=null,afTriggerClockSignature='';
+    function renderPaperTriggers(response) {
+      afTriggerSnapshot=response;
+      afTriggerClockSignature=JSON.stringify((response.plans||[]).map(p=>{const v=premiumPaperView({runId:p.runId,runFacts:{paperPlanKey:p.planKey,paperView:p.view}});return v&&[v.paperState,v.awaitingData,v.label];}));
+      const tableBody=document.querySelector('#triggersTable tbody');
           tableBody.innerHTML = '';
           if (response.success) {
-            if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(response.plans||[]);
-            const triggers = response.triggers.filter(trigger => ['Active', 'Review'].includes(trigger.status));
+            const triggers = (response.triggers||[]).map(trigger=>{
+              const p=(response.plans||[]).find(p=>p.planKey===trigger.alertId);
+              const v=p&&premiumPaperView({runId:p.runId,runFacts:{paperPlanKey:p.planKey,paperView:p.view}});
+              if(!v)return trigger;
+              if(!['PENDING','ACTIVE','REVIEW'].includes(v.paperState))return null;
+              return {...trigger,status:v.paperState==='REVIEW'||v.awaitingData?'Review':'Active',statusLabel:v.label,entryAllowed:v.entryAllowed};
+            }).filter(trigger => trigger&&['Active', 'Review'].includes(trigger.status));
             document.getElementById('premiumAlertCount').textContent = triggers.length + ' รายการ';
             if (triggers.length === 0) {
               tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">ไม่มี Trigger ที่ Active อยู่</td></tr>`;
@@ -1287,17 +1311,21 @@ async function copyResult (){
             Swal.fire('ผิดพลาด', response.message || 'ไม่สามารถโหลดข้อมูล Trigger ได้', 'error');
             tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">ไม่สามารถโหลดข้อมูล Trigger</td></tr>`;
           }
-        })
-        .withFailureHandler(function(error) {
-          releaseAlerts();
-          console.error("Load Triggers Error:", error);
-          document.getElementById('premiumAlertCount').textContent = 'โหลดไม่สำเร็จ';
-          tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">เกิดข้อผิดพลาด: ${premiumEscape(error.message)}</td></tr>`;
-          Swal.fire('ผิดพลาดรุนแรง', 'เกิดข้อผิดพลาดในการดึงข้อมูล Trigger: ' + error.message, 'error');
-        })
-        .manageTriggers('getAll', currentUser);
-      }catch(error){releaseAlerts();tableBody.innerHTML='<tr><td colspan="7">ยังโหลดสถานะแผนไม่ได้ กรุณาลองใหม่</td></tr>';}
+
     }
+    window.afApplyPaperStatus=function(response){
+      if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(response.plans||[],response.aliases);
+      if(typeof isEditMode!=='undefined'&&isEditMode)return;
+      renderPaperTriggers(response);
+    };
+    window.afRefreshTriggerClock=function(){
+      if(!afTriggerSnapshot||typeof isEditMode!=='undefined'&&isEditMode)return;
+      const plans=afTriggerSnapshot.plans||[],views=plans.map(p=>premiumPaperView({runId:p.runId,runFacts:{paperPlanKey:p.planKey,paperView:p.view}}));
+      const signature=JSON.stringify(views.map(v=>v&&[v.paperState,v.awaitingData,v.label]));
+      if(signature===afTriggerClockSignature)return;afTriggerClockSignature=signature;
+      const triggers=(afTriggerSnapshot.triggers||[]).map(t=>{const i=plans.findIndex(p=>p.planKey===t.alertId),v=views[i];return v?{...t,status:v.paperState==='REVIEW'||v.awaitingData?'Review':'Active',statusLabel:v.label,entryAllowed:v.entryAllowed}:t;});
+      renderPaperTriggers({...afTriggerSnapshot,triggers});
+    };
 
     function confirmDeleteAllTriggers() {
       const currentUser = localStorage.getItem('af.currentUser');
@@ -1778,3 +1806,4 @@ function navigateToAI(){spaceNavigate('analysisSettings');}
 
 function showDeleteUserPanel(){const user=window.AF_SOLO_WORKSPACE.username;Swal.fire({title:'ล้างข้อมูลทดสอบ',text:'ล้างประวัติและแผนจำลองของผู้ทดสอบใน Sheet ใหม่อย่างถาวร',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันล้างข้อมูลทดสอบ',cancelButtonText:'ยกเลิก'}).then(r=>{if(!r.isConfirmed)return;google.script.run.withSuccessHandler(v=>{Swal.fire(v.success?'สำเร็จ':'ดำเนินการไม่ได้',v.message,v.success?'success':'error');if(v.success){analysisHistory=[];premiumPersistHistory();premiumResetResult();loadTriggers();}}).withFailureHandler(e=>Swal.fire('ผิดพลาด',e.message,'error')).afDeleteOwnData(user,'DELETE_MY_TEST_DATA');});}
 </script>
+

@@ -48,6 +48,15 @@ function afResearchBookLocked_(){
   });return book;
 }
 function afResearchLock_(fn){var lock=LockService.getScriptLock();lock.waitLock(30000);try{return fn();}finally{lock.releaseLock();}}
+// Committed revisions point to already-written immutable blobs. Readers can
+// inspect that snapshot without blocking analysis or candle monitoring.
+function afResearchReadBook_(){
+  afAssertSandbox_();var id=PropertiesService.getScriptProperties().getProperty('AF_SHEET_ID');if(!id)return null;
+  var book=SpreadsheetApp.openById(id);if(book.getName().indexOf('Allindy + Fibo')!==0)throw Error('AF_WORKSPACE_ID_MISMATCH');
+  Object.keys(AF_RESEARCH_HEADERS).forEach(function(name){var s=book.getSheetByName(name),header=AF_RESEARCH_HEADERS[name];
+    if(!s||JSON.stringify(s.getRange(1,1,1,header.length).getValues()[0])!==JSON.stringify(header))throw Error('AF_RESEARCH_HEADER_MISMATCH');
+  });return book;
+}
 function afResearchRows_(book,name){return book.getSheetByName(name).getDataRange().getValues().slice(1);}
 // Do not serialize requests/config/provider exceptions. Redact irrelevant sensitive keys.
 function afResearchClean_(value){
@@ -104,6 +113,7 @@ function afPaperCommit_(book,p,kind,from){
   var previous=p._ref||'',copy=JSON.parse(JSON.stringify(p));delete copy._ref;copy.revision=(copy.revision||0)+1;
   var blob=afResearchBlob_(book,copy),s=book.getSheetByName('PaperPlans'),at=Date.now();
   afResearchAppend_(s,[s.getLastRow(),at,p.owner,p.key,p.state,copy.revision,previous,blob.ref,blob.hash]);
+  afPaperStatusChanged_();
   p.revision=copy.revision;p._ref=blob.ref;
   var events=book.getSheetByName('Events');
   afResearchAppend_(events,[events.getLastRow(),at,p.owner,p.key,kind,from||'',p.state,blob.ref]);
@@ -112,7 +122,7 @@ function afPaperCommit_(book,p,kind,from){
 function afResearchAuditDone_(book,owner,key,blob,result,kind){
   var s=book.getSheetByName('Events');
   afResearchAppend_(s,[s.getLastRow(),Date.now(),owner,key||'',kind||'AUDIT_RECORDED','','',blob.ref]);
-  SpreadsheetApp.flush();return result;
+  SpreadsheetApp.flush();afPaperStatusChanged_();return result;
 }
 function afArchiveNewsCoverage_(news,at){
   if(!news||news.ok!==true||!Number.isFinite(at)||!Number.isFinite(news.sourceAgeMinutes)||!Array.isArray(news.events)||!Number.isFinite(news.beforeMinutes)||!Number.isFinite(news.afterMinutes))return [];
@@ -266,8 +276,8 @@ function afPaperPublic_(p){
 }
 // Read-only: no provider calls, no implicit replay/backfill or AI polling.
 function afResearchDashboard(user,includeAudits){
-  afRequireUser_(user);return afResearchLock_(function(){
-    var book=afResearchBookLocked_(),owner=afResearchHash_(user),plans=afPaperLatest_(book,owner),now=Date.now();
+  afRequireUser_(user);
+    var book=afResearchReadBook_()||afResearchLock_(afResearchBookLocked_),owner=afResearchHash_(user),plans=afPaperLatest_(book,owner),now=Date.now();
     var today=Utilities.formatDate(new Date(now),'Asia/Bangkok','yyyy-MM-dd');
     // Automatic alert/stat requests need plan state, not the large diagnostic audit bodies.
     var rows=includeAudits===false?[]:afResearchRows_(book,'Audit').filter(function(r){return r[2]===owner;}).slice(-10).reverse();
@@ -286,5 +296,5 @@ function afResearchDashboard(user,includeAudits){
       plans:plans.sort(function(a,b){return b.createdAt-a.createdAt;}).map(afPaperPublic_),today:{date:today,entries:fills.length},timeZone:'Asia/Bangkok',todayPaperFills:fills,
       desiredRange:{min:1,max:5,researchOnly:true,enforcedQuota:false},
       note:'Modeled paper evidence only. REVIEW is unresolved; no verified broker fills. Desired range is not a trade quota.'});
-  });
 }
+
