@@ -1,6 +1,6 @@
 # Chart2Plan (Allindy + EBW-Fibo)
 
-> อัปเดต 25 ตุลาคม 2026: รุ่นล่าสุด **34** (`2026-10-25-openrouter-gemini-38-default`) เพิ่ม Gemini 3.8 Flash ผ่าน OpenRouter เป็นโมเดลเริ่มต้น และจำโมเดลที่เลือกไว้ในเบราว์เซอร์ ตาม **RELEASE_34_TH.md** ใช้งานผ่าน https://basssg.github.io/Chart2Plan/
+> อัปเดต 25 ตุลาคม 2026: รุ่นล่าสุด **38** (`2026-10-25-shared-signal-log-4`) เชื่อมแผน PAPER ลง TAPRO_2 / TAProSignalLog แบบหนึ่งแผนต่อหนึ่งแถว พร้อมตัวติดตามสถานะอัตโนมัติ โดยใช้กฎวิเคราะห์เดิม ตาม **RELEASE_35_TH.md** และ **RELEASE_38_TH.md** ใช้งานผ่าน https://basssg.github.io/Chart2Plan/
 
 > **AI Trading Decision Support & Evidence-Based Execution Engine**  
 > ผสานตรรกะ **All Indy 1.3.5** และ **EBW-Fibo 1.10.19** เป็นระบบวางแผนการเทรดคำนวณราคาล่วงหน้า (Deterministic Planning) และติดตามผลจำลอง (Audit Ledger) บน Google Apps Script และ Web App / PWA สำหรับโทรศัพท์มือถือ
@@ -10,7 +10,7 @@
 ## 📱 Web App & Mobile Application (PWA)
 
 - **ลิงก์ใช้งาน Web App:** [เปิดใช้งาน Chart2Plan](https://script.google.com/macros/s/AKfycbxShlJXB7L1ctoDWG0TV9exyI3SQUA66cypHoeYUmID3_NUzVoREz39yLi1OnWnksNs9g/exec)
-- **สถานะ:** Revision `2026-10-25-openrouter-gemini-38-default` (Mode: TEST / Live Trading: False)
+- **สถานะ:** Revision `2026-10-25-shared-signal-log-4` (Mode: TEST / Live Trading: False)
 
 ### 📲 วิธีติดตั้งเป็น Application บนโทรศัพท์มือถือ (iOS & Android)
 

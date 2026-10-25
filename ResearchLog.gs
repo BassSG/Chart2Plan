@@ -107,6 +107,7 @@ function afPaperCommit_(book,p,kind,from){
   p.revision=copy.revision;p._ref=blob.ref;
   var events=book.getSheetByName('Events');
   afResearchAppend_(events,[events.getLastRow(),at,p.owner,p.key,kind,from||'',p.state,blob.ref]);
+  return typeof afSharedObservePaper_==='function'?afSharedObservePaper_(book,p):null;
 }
 function afResearchAuditDone_(book,owner,key,blob,result,kind){
   var s=book.getSheetByName('Events');
@@ -137,7 +138,7 @@ function afAuditRecord_(response,request){
   var result={auditRef:blob.ref,auditHash:blob.hash,planKey:key||null,realBroker:false};
   if(!p)return afResearchAuditDone_(book,owner,key,blob,result);
   var prior=afPaperLatest_(book,owner).find(function(x){return x.key===key;});
-  if(prior){result.deduplicated=true;result.state=prior.state;return afResearchAuditDone_(book,owner,key,blob,result,'AUDIT_DEDUPLICATED');}
+  if(prior){result.deduplicated=true;result.state=prior.state;if(typeof afSharedObservePaper_==='function')result.sharedSave=afSharedObservePaper_(book,prior);return afResearchAuditDone_(book,owner,key,blob,result,'AUDIT_DEDUPLICATED');}
   var e=p.evidence||{},tf=e.executionTF||p.executionTF,tfMs=afPaperTfMs_(p);
   var q=(snapshot||{}).quote||{},spread=typeof q.spread==='number'?q.spread:q.spread_price;
   var state='PENDING',reason='AWAITING_CLOSED_M1';
@@ -154,7 +155,8 @@ function afAuditRecord_(response,request){
     metadata:afResearchClean_({evidence:e,invalidation:p.invalidation||null,ruleVersion:p.ruleVersion||null,versions:evidence.versions}),
     newsCoverage:afResearchClean_(archivedNews),
     state:state,reason:reason,lastBarClose:activationAt,fillAt:null,fillPrice:null,exitAt:null,exitPrice:null,pnlPrice:null,revision:0};
-  afPaperCommit_(book,paper,'CREATED','');result.state=state;return afResearchAuditDone_(book,owner,key,blob,result);
+  if(typeof afSharedMetadata_==='function')paper.sharedSignal=afSharedMetadata_(response,request,snapshot,tf);
+  result.sharedSave=afPaperCommit_(book,paper,'CREATED','');result.state=state;return afResearchAuditDone_(book,owner,key,blob,result);
 }
 function afPaperReview_(p,reason){p.state='REVIEW';p.reason=reason;p.pnlPrice=null;return p;}
 function afPaperHistoricalNews_(p,b){
@@ -211,14 +213,15 @@ function afPaperSummary_(plans){
 }
 function afRefreshPaper(user){return afPaperRefresh_(user);}
 function afPaperRefresh_(user){afRequireUser_(user);return afResearchLock_(function(){return afPaperRefreshLocked_(user);});}
-function afPaperRefreshLocked_(user){
-  afRequireUser_(user);var book=afResearchBookLocked_(),owner=afResearchHash_(user),plans=afPaperLatest_(book,owner),now=Date.now();
+function afPaperRefreshLocked_(user,options){
+  afRequireUser_(user);var book=afResearchBookLocked_(),owner=afResearchHash_(user),plans=options&&Array.isArray(options.plans)?options.plans:afPaperLatest_(book,owner),now=Date.now();
   var pending=plans.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state);}),bars=[],feed='NOT_REQUESTED';
   if(pending.length){
     try{
       // Closed-bar replay does not require an open-market quote: never invent a missing outcome.
       AF_PROVIDER_RUN.responses={};AF_PROVIDER_RUN.quote=null;AF_PROVIDER_RUN.metadata=null;
-      var market=afReadMarket_('1m',3000);
+      var requestedLimit=options&&options.limit,barLimit=Number.isInteger(requestedLimit)&&requestedLimit>=30&&requestedLimit<=3000?requestedLimit:3000;
+      var market=afReadMarket_('1m',barLimit);
       if(market.symbol!=='XAUUSD'||market.sourceId!=='Eightcap-MT5-Live')throw Error('AF_PAPER_FEED_INVALID');
       bars=market.bars;if(!bars.length)throw Error('AF_PAPER_FEED_EMPTY');
       var previous=null;
@@ -285,4 +288,5 @@ function afResearchDashboard(user,includeAudits){
       note:'Modeled paper evidence only. REVIEW is unresolved; no verified broker fills. Desired range is not a trade quota.'});
   });
 }
+
 

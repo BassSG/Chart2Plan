@@ -1,6 +1,6 @@
 {
   "scriptId": "1SM3hKmFADM-gYV6IuuZiH6XreZcwhIiAqUaObuiZf5KXGmUMKBHUfzdu",
-  "revision": "2026-10-25-openrouter-gemini-38-default",
+  "revision": "2026-10-25-shared-signal-log-4",
   "files": [
     {
       "source": "DayTrade.gs",
@@ -11,26 +11,26 @@
     {
       "source": "Workflow.gs",
       "target": "Workflow.js",
-      "baselineSha256": "f2faecc8b044a79044951905a8c7d060e1b323699acdeb930225aef9530a6301",
-      "patchedSha256": "f2faecc8b044a79044951905a8c7d060e1b323699acdeb930225aef9530a6301"
+      "baselineSha256": "c56f4c2ff14e0e8b7ab4d2857d4716eb6ca6cef77b02ef13eaec9cdc023d0a3d",
+      "patchedSha256": "c56f4c2ff14e0e8b7ab4d2857d4716eb6ca6cef77b02ef13eaec9cdc023d0a3d"
     },
     {
       "source": "ResearchLog.gs",
       "target": "ResearchLog.js",
-      "baselineSha256": "e037b24c802d979d17c3b1b74837d2d995c8919dd4b2f153f3348ff9779c2bb1",
-      "patchedSha256": "e037b24c802d979d17c3b1b74837d2d995c8919dd4b2f153f3348ff9779c2bb1"
+      "baselineSha256": "f40e4c34b6075058bf12c475b46a89a8c8150e8050a6718f1f9b411615bd3280",
+      "patchedSha256": "f40e4c34b6075058bf12c475b46a89a8c8150e8050a6718f1f9b411615bd3280"
     },
     {
       "source": "ResearchUi.html",
       "target": "ResearchUi.html",
-      "baselineSha256": "8aa229b4eba78a0dfcc084caf9cbd014ebb0016bae10826e4f41c5a7fe259db3",
-      "patchedSha256": "8aa229b4eba78a0dfcc084caf9cbd014ebb0016bae10826e4f41c5a7fe259db3"
+      "baselineSha256": "e3c51fb5686d731b55f9795400c94b5e8fbf058a8e83739add2065322abd9606",
+      "patchedSha256": "e3c51fb5686d731b55f9795400c94b5e8fbf058a8e83739add2065322abd9606"
     },
     {
       "source": "PremiumUi.html",
       "target": "PremiumUi.html",
-      "baselineSha256": "f47bbfd55143b6d1a78bbda6e6435b2c1d28e17019b00faf91243d1ef7d9a58c",
-      "patchedSha256": "d7029dfc9a549fc3a0ec1bb0efaa4d396329780bee76327e16f48fba60c80fa6"
+      "baselineSha256": "16824c4b8f0e5a0c9bbf295a959add8cfb48afe045c9d2dfd15290972bcbe87a",
+      "patchedSha256": "16824c4b8f0e5a0c9bbf295a959add8cfb48afe045c9d2dfd15290972bcbe87a"
     },
     {
       "source": "PremiumStyles.html",
@@ -41,8 +41,8 @@
     {
       "source": "Code.gs",
       "target": "Code.js",
-      "baselineSha256": "ed8a071fd7bb203b5e002b44f7c309b33dcc1ab2969c1092299133687bda30c2",
-      "patchedSha256": "cd27afbfc53594e4f55710f48c460e0121d758f22502f46eddd15e540a492ece"
+      "baselineSha256": "e224fa5e01e303cc2ff11ed37e91c8a8ff535f9f11f16b322e19295a995cd66c",
+      "patchedSha256": "383a561bacb9e40ef8201d5b890215249c35cc35fee9af33ee8bc2d9ba74fd02"
     },
     {
       "source": "Planner.gs",
@@ -71,26 +71,36 @@
     {
       "source": "Workspace.gs",
       "target": "Workspace.js",
-      "baselineSha256": "c103f7d82654a3ed2897e6d32fc5e33d27c884fe699a901d82ffc8b03f74cbb5",
-      "patchedSha256": "c103f7d82654a3ed2897e6d32fc5e33d27c884fe699a901d82ffc8b03f74cbb5"
+      "baselineSha256": "f54d51d660ec62b11e2079ad571b27620cc3575ab6dc9271ca7500b8e515229b",
+      "patchedSha256": "f54d51d660ec62b11e2079ad571b27620cc3575ab6dc9271ca7500b8e515229b"
     },
     {
       "source": "ClientScript.html",
       "target": "ClientScript.html",
-      "baselineSha256": "9c53c0dd783227a13fe9aba108cadb5a7601bd6fa309ffff50e6bf3154e8f989",
-      "patchedSha256": "f8eba594b61cf0fd81c15e7484928750b31484a645cc660eb63b17c26853cffc"
+      "baselineSha256": "0ecf3db51aef9aa4613445ecb3fabbfe346beafad1b512ff7a733d44dcc74f2c",
+      "patchedSha256": "0ecf3db51aef9aa4613445ecb3fabbfe346beafad1b512ff7a733d44dcc74f2c"
     },
     {
       "source": "Index-template.html",
       "target": "Index.html",
-      "baselineSha256": "be9fe9b72d2f515e84d555db970aa632d9e7fabce9e81075a2a94eb44aedbfdd",
+      "baselineSha256": "2499314f60c7be2c411290dd00e4494fe30ea155ca74ceaa8273996d98da529d",
       "patchedSha256": "2499314f60c7be2c411290dd00e4494fe30ea155ca74ceaa8273996d98da529d"
     },
     {
       "source": "AiProvider.gs",
       "target": "AiProvider.js",
-      "baselineSha256": "61e7b8afdb827d27bbc31c029c3096af18e192a4cee11f031d98b20728c46f71",
+      "baselineSha256": "e6d007816ec30e2208ea20fb5d52397b36f0c90a64ad9ee7c01d1e434c36562d",
       "patchedSha256": "e6d007816ec30e2208ea20fb5d52397b36f0c90a64ad9ee7c01d1e434c36562d"
+    },
+    {
+      "source": "SharedSignals.gs",
+      "target": "SharedSignals.js",
+      "baselineSha256": "07edf381dc1c3799b2c35f6d465db2f978be225641512f617a706c401c715a98",
+      "patchedSha256": "198758488726ddbaeaf906afd961d28f2c672d88d1b5a34091ab16cd6376cb8e"
     }
+  ],
+  "requiredScopes": [],
+  "removeScopes": [
+    "https://www.googleapis.com/auth/script.scriptapp"
   ]
 }

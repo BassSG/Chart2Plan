@@ -1,11 +1,11 @@
 var AF_CONFIG = Object.freeze({namespace:'ALLINDY_FIBO_SANDBOX_V1',mode:'TEST',liveTrading:false,sourceDetectorsReady:true});
-function afStatus(){return {system:'ALLINDY_FIBO',revision:'2026-10-25-openrouter-gemini-38-default',mode:'TEST',workflow:'ORIGINAL_CHART2PLAN',singleUser:true,appLoginRequired:false,strategy:'ALLINDY_FIBO_AI',manualAiCallsEnabled:true,liveTrading:false,pineRuntimeParityVerified:false,marketFeedConfigured:true,newsFeedConfigured:true,serverUtc:new Date().toISOString()};}
+function afStatus(){return {system:'ALLINDY_FIBO',revision:'2026-10-25-shared-signal-log-4',mode:'TEST',workflow:'ORIGINAL_CHART2PLAN',singleUser:true,appLoginRequired:false,strategy:'ALLINDY_FIBO_AI',manualAiCallsEnabled:true,liveTrading:false,pineRuntimeParityVerified:false,marketFeedConfigured:true,newsFeedConfigured:true,sharedSignalsEnabled:typeof afSharedEnabled_==='function'&&afSharedEnabled_(),serverUtc:new Date().toISOString()};}
 
 function doGet(e) {
   if(e&&e.parameter&&e.parameter.format==='json') return afJson_(afStatus());
   return HtmlService.createTemplateFromFile('Index').evaluate().setTitle('Allindy + Fibo | Chart2Plan').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
-function doPost() { return afJson_({accepted:false,reason:'EXTERNAL_INGRESS_DISABLED',liveTrading:false}); }
+function doPost(e) { return afSharedMonitorRequest_(e); }
 function afJson_(v) {return ContentService.createTextOutput(JSON.stringify(v)).setMimeType(ContentService.MimeType.JSON);}
 function afEvaluate() {return {decision:'NO_TRADE',reason:'USE_MANUAL_PAPER_ANALYSIS',mode:'TEST'};}
 function afEvaluateEvidence(p) {

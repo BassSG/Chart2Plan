@@ -118,7 +118,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
  }
  try{
   audit.stage='AUTH';afRequireUser_(user);
-  req={tradeType:tradeType,symbol:String(symbol||''),user:user,model:String(model||'openai/gpt-6.1-sol-pro')};
+  req={tradeType:tradeType,symbol:String(symbol||''),user:user,model:String(model||'google/gemini-3.8-flash')};
   audit.stage='LOCK';lock=LockService.getScriptLock();held=lock.tryLock(1000);
   if(!held)return finish('DATA_BUSY','LOCK','AF_ANALYSIS_BUSY',null,false);
   audit.stage='INPUT';audit.snapshot.symbol=req.symbol;
@@ -295,4 +295,5 @@ function afResearchDiagnostics(tradeType,symbol,qc){
  }catch(e){audit.reasonCode=afWorkflowFailureCode_(e);audit.gateCodes=[audit.reasonCode];return finish(false,afWorkflowStatus_(audit.reasonCode));}
  finally{if(held&&lock){try{lock.releaseLock();}catch(_){}}}
 }
+
 

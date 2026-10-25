@@ -165,7 +165,8 @@ function premiumRunFacts(response) {
   const received=!!a.postChecks?.startedAt||status==='PAPER_SIGNAL_READY'&&response?.success===true||cost!==null||Object.values(usage).some(v=>typeof v==='number'&&v>0);
   let aiState=response?.aiCalled===false||status==='DATA_BUSY'||early.includes(stage)?'not_called':received?'completed':'unknown';
   return {aiState,candidateCount:candidates?candidates.length:null,eligibleCount:candidates?candidates.filter(c=>c.eligible===true).length:null,
-    selectedCandidateId:a.selectedCandidateId||null,weekendTest:a.snapshot?.quote?.weekend_test_mode===true};
+    selectedCandidateId:a.selectedCandidateId||null,weekendTest:a.snapshot?.quote?.weekend_test_mode===true,
+    sharedSaveState:response?.sharedSave?.state||null,sharedUrl:/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+\/edit#gid=\d+(?:&range=A\d+)?$/.test(response?.sharedSave?.url||'')?response.sharedSave.url:null};
 }
 function premiumAiState(item) {
   if(item.status==='DATA_BUSY'||String(item.raw||'').trim()==='AF_ANALYSIS_BUSY')return 'not_called';
@@ -179,11 +180,12 @@ function premiumPlainReason(raw) {
 }
 function premiumJourney(item,passed) {
   const e=premiumEscape,ai=premiumAiState(item),f=item.runFacts||{},known=f.eligibleCount!=null,uncertain=['CLIENT_RPC_ERROR','SAVE_FAILED_OR_PARTIAL'].includes(item.status);
+  const sharedPending=passed&&f.sharedSaveState&&f.sharedSaveState!=='SYNCED';
   const ruleDone=passed||known&&f.eligibleCount>0||ai==='completed';
   const steps=[
     {done:ruleDone,title:'กฎคำนวณ',text:known?(f.eligibleCount+' แผนผ่านกฎ จาก '+f.candidateCount):ruleDone?'คัดโซนและคำนวณราคาแล้ว':'ยังไม่มีแผนยืนยัน'},
     {done:ai==='completed',title:ai==='completed'?'AI วิเคราะห์แล้ว':ai==='not_called'?'ยังไม่เรียก AI':'สถานะ AI ยังไม่ยืนยัน',text:ai==='completed'?(passed?'เลือกแผนนี้จากหลักฐาน':'ประเมินแล้ว · รอบนี้ไม่มีแผนพร้อมใช้'):ai==='not_called'?'หยุดก่อนขั้นตอน AI':'ดูรายละเอียดรอบด้านล่าง'},
-    {done:passed,title:passed?'บันทึกแผนแล้ว':uncertain?'ยังยืนยันการบันทึกไม่ได้':'ยังไม่มีแผนใหม่',text:passed?'แผนจำลอง · ไม่ส่งคำสั่งจริง':uncertain?'ตรวจ Run ID ก่อนเริ่มรอบใหม่':'รอรอบที่ผ่านเงื่อนไขครบ'}
+    {done:passed&&!sharedPending,title:sharedPending?'รอซิงก์ชีตร่วม':passed?'บันทึกแผนแล้ว':uncertain?'ยังยืนยันการบันทึกไม่ได้':'ยังไม่มีแผนใหม่',text:sharedPending?'แผนบันทึกภายในแล้ว · ระบบจะลองซิงก์อัตโนมัติ':passed&&f.sharedSaveState==='SYNCED'?'TAPRO_2 · หนึ่งแผนต่อหนึ่งแถว':passed?'แผนจำลอง · ไม่ส่งคำสั่งจริง':uncertain?'ตรวจ Run ID ก่อนเริ่มรอบใหม่':'รอรอบที่ผ่านเงื่อนไขครบ'}
   ];
   return '<ol class="c2p-journey" aria-label="สถานะการวิเคราะห์">'+steps.map((s,i)=>'<li class="'+(s.done?'is-done':'is-wait')+'"><span class="c2p-journey-icon">'+(s.done?'✓':i+1)+'</span><div><strong>'+e(s.title)+'</strong><small>'+e(s.text)+'</small></div></li>').join('')+'</ol>';
 }
@@ -203,8 +205,9 @@ function premiumRenderRecord(item) {
   const quality=pct!==null&&threshold!==null?'<div class="c2p-quality"><div><strong>คะแนนหลักฐาน <b>'+e(pct.toFixed(1))+' <small>/ 100</small></b></strong><span>เกณฑ์รอบนี้ '+e(threshold)+' คะแนน · ไม่ใช่โอกาสชนะ</span></div><div class="premium-quality-track"><span style="width:'+Math.max(0,Math.min(100,pct))+'%"></span><i style="left:'+Math.max(0,Math.min(100,threshold))+'%"></i></div></div>':'';
   const aiLabel=ai==='completed'?'AI วิเคราะห์แล้ว':ai==='not_called'?'รอบนี้ยังไม่เรียก AI':'ยังยืนยันการเรียก AI ไม่ได้';
   const message=passed?'ใช้ศึกษาแผนจำลอง · ยังไม่มีการส่งคำสั่งเทรดจริง':outcome.description;
+  const shared=item.runFacts?.sharedUrl?'<p class="c2p-market-note"><a href="'+e(item.runFacts.sharedUrl)+'" target="_blank" rel="noopener">'+(item.runFacts.sharedSaveState==='SYNCED'?'เปิดแถวแผนนี้ในชีตติดตามร่วม':'เปิดชีตติดตามร่วม · กำลังรอซิงก์')+'</a></p>':'';
   const technical='<details class="c2p-run-details"><summary>ข้อมูลรอบและค่า AI</summary><dl><dt>สถานะ AI</dt><dd>'+e(aiLabel)+'</dd><dt>โมเดลที่เลือก</dt><dd>'+e(item.model||'—')+'</dd><dt>ค่า AI</dt><dd>'+e(cost!==null?'$'+cost.toFixed(6):ai==='not_called'?'ไม่ได้เรียกในรอบนี้':'ผู้ให้บริการไม่ระบุ / ยังไม่ยืนยัน')+'</dd><dt>Run ID</dt><dd>'+e(item.runId||'—')+'</dd></dl></details>';
-  return '<article class="ai-card premium-result c2p-result" data-outcome="'+e(outcome.kind)+'"><div class="premium-result-top"><span class="premium-outcome '+e(outcome.kind)+'">'+(passed?'✓ ':'')+e(label)+'</span><time class="premium-result-time">'+e(premiumFormatTime(item.createdAt))+'</time></div><h4 class="premium-result-title">'+e(title)+'</h4><p class="premium-result-sub">'+e(message)+'</p>'+premiumJourney(item,passed)+(item.runFacts?.weekendTest||/weekend_test_mode/.test(raw)?'<p class="c2p-market-note">ข้อมูลช่วงตลาดปิด · รอบนี้ใช้ทดสอบแผน</p>':'')+levels+(reason&&!isBusy?'<section class="c2p-reason"><h5>'+(passed?'เหตุผลที่เลือกโซนนี้':'เหตุผลของรอบนี้')+'</h5><p>'+e(reason)+'</p></section>':'')+quality+premiumRenderRejectedPreview(item)+premiumLevelReview(raw)+technical+premiumRenderOriginalDetails(raw)+'</article>';
+  return '<article class="ai-card premium-result c2p-result" data-outcome="'+e(outcome.kind)+'"><div class="premium-result-top"><span class="premium-outcome '+e(outcome.kind)+'">'+(passed?'✓ ':'')+e(label)+'</span><time class="premium-result-time">'+e(premiumFormatTime(item.createdAt))+'</time></div><h4 class="premium-result-title">'+e(title)+'</h4><p class="premium-result-sub">'+e(message)+'</p>'+premiumJourney(item,passed)+shared+(item.runFacts?.weekendTest||/weekend_test_mode/.test(raw)?'<p class="c2p-market-note">ข้อมูลช่วงตลาดปิด · รอบนี้ใช้ทดสอบแผน</p>':'')+levels+(reason&&!isBusy?'<section class="c2p-reason"><h5>'+(passed?'เหตุผลที่เลือกโซนนี้':'เหตุผลของรอบนี้')+'</h5><p>'+e(reason)+'</p></section>':'')+quality+premiumRenderRejectedPreview(item)+premiumLevelReview(raw)+technical+premiumRenderOriginalDetails(raw)+'</article>';
 }
 
 function premiumPersistHistory() {
@@ -324,4 +327,5 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Independent GAS app: no messages to the production wrapper.
 });
 </script>
+
 

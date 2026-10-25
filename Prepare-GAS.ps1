@@ -31,7 +31,16 @@ try{
  }
  $afRuntime=Get-Content -LiteralPath 'appsscript.json' -Raw -Encoding utf8 | ConvertFrom-Json
  if($afRuntime.runtimeVersion -ne 'V8'){throw 'Expected V8 runtime'}
- # Preserve all other remote files, scopes, access settings, provider config and properties.
+ if($afManifest.requiredScopes){
+  $afScopes=@($afRuntime.oauthScopes)+@($afManifest.requiredScopes) | Where-Object { $_ } | Select-Object -Unique
+  if($afRuntime.PSObject.Properties.Name -contains 'oauthScopes'){$afRuntime.oauthScopes=@($afScopes)}else{$afRuntime|Add-Member -NotePropertyName oauthScopes -NotePropertyValue @($afScopes)}
+  [IO.File]::WriteAllText((Join-Path $afStage 'appsscript.json'),($afRuntime|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
+ }
+ if($afManifest.removeScopes){
+  $afRuntime.oauthScopes=@($afRuntime.oauthScopes | Where-Object { $_ -notin $afManifest.removeScopes })
+  [IO.File]::WriteAllText((Join-Path $afStage 'appsscript.json'),($afRuntime|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
+ }
+ # Preserve other remote files, access settings, provider config and properties; add only declared scopes.
  & clasp status
  if($LASTEXITCODE -ne 0){throw 'Clasp status failed'}
  Write-Output ('Prepared private staging: '+$afStage)
@@ -42,7 +51,8 @@ try{
   if($LASTEXITCODE -ne 0){throw 'Clasp push failed'}
  }
  if($Deploy){
-  & clasp deploy --deploymentId $afDeploymentId --description 'Reading-first responsive workspace; explicit AI status; remove Dashboard and SnD'
+  & clasp deploy --deploymentId $afDeploymentId --description 'Shared one-row PAPER SignalLog, automatic lifecycle monitoring, original analysis rules'
   if($LASTEXITCODE -ne 0){throw 'Clasp deploy failed'}
  }
 }finally{Pop-Location}
+

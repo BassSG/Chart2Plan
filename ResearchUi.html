@@ -122,13 +122,21 @@
    '<div id="afResearchMetrics" class="af-research-metrics"></div><div id="afResearchCandidates"></div>'+
    '<details><summary>ดูหลักฐานตัวอย่าง 10 แผน · ดาวน์โหลด JSON เพื่อดูทั้งหมด</summary><pre id="afResearchJson"></pre></details>'+
    '<h4 class="af-research-paper-title">ผลแผนจำลองที่บันทึกไว้</h4><p class="af-research-paper-note" id="afResearchDashboardStatus">ยังไม่ได้โหลดประวัติจากเซิร์ฟเวอร์</p><div id="afResearchPaper"><div class="af-research-empty">กด “โหลดประวัติจากเซิร์ฟเวอร์” เพื่อดูสถานะที่บันทึกไว้</div></div>'+
-   '<p class="af-research-footnote">แผนจำลองเริ่มนาทีเต็มถัดไปและอัปเดตเมื่อกดปุ่มเท่านั้น · ข้อมูลไม่ครบหรือไม่รู้ลำดับแท่งจะแสดง REVIEW · คะแนน QC ไม่ใช่โอกาสชนะ</p>'+
+   '<p class="af-research-footnote">แผนจำลองเริ่มนาทีเต็มถัดไป · เมื่อเชื่อมชีตร่วมจะใช้รอบตรวจเดิมประมาณทุก 5 นาที · ข้อมูลไม่ครบหรือไม่รู้ลำดับแท่งจะแสดง REVIEW · คะแนน QC ไม่ใช่โอกาสชนะ</p>'+
+   '<div class="af-research-actions"><button type="button" id="afSharedConnect">เชื่อมชีตติดตามร่วม</button></div><p id="afSharedStatus" class="af-research-paper-note" role="status">กำลังอ่านสถานะชีตติดตามร่วม…</p>'+
    '<details><summary>ประวัติรอบตรวจและสถานะแผนบนเซิร์ฟเวอร์</summary><pre id="afResearchPaperDetail"></pre></details></div>';
   var host=document.getElementById('c2pResearchHost');if(host)host.appendChild(section);else grid.parentNode.insertBefore(section,grid.nextSibling);
   Array.from(document.getElementById('symbol').options).forEach(function(o){if(o.value.replace('/','')!=='XAUUSD'){o.disabled=true;o.textContent+=' · ยังไม่มีข้อมูลยืนยัน';}});
   Array.from(document.getElementById('qcLevel').options).forEach(function(o){o.textContent=o.textContent.replace('%',' คะแนน');});
   section.querySelectorAll('button[data-action]').forEach(function(b){b.addEventListener('click',function(){rpc(b.dataset.action);});});
   if(typeof premiumSyncWorkButtons==='function')premiumSyncWorkButtons();
+  function sharedStatus(v){var box=document.getElementById('afSharedStatus');box.textContent=v.enabled?'บันทึกที่ TAPRO_2 / TAProSignalLog · '+(v.monitorInstalled?'ติดตามผ่านระบบเดิมทุก 5 นาที':'ยังไม่ได้เปิดตัวติดตาม')+(v.lastError?' · มีงานรอซิงก์':''):'ยังไม่ได้เชื่อมชีตติดตามร่วม';}
+  document.getElementById('afSharedConnect').addEventListener('click',function(){
+   var button=this;if(typeof premiumAcquireWork==='function'&&!premiumAcquireWork('shared-setup','เชื่อมชีตติดตาม'))return;
+   button.disabled=true;document.getElementById('afSharedStatus').textContent='กำลังเชื่อมชีตและเปิดตัวติดตาม · ไม่มีการเรียก AI';
+   google.script.run.withSuccessHandler(function(v){button.disabled=false;if(typeof premiumReleaseWork==='function')premiumReleaseWork('shared-setup');sharedStatus(v);if(v.imported!=null)document.getElementById('afSharedStatus').textContent+=' · ซิงก์แผนเดิม '+v.imported+' แผน';}).withFailureHandler(function(){button.disabled=false;if(typeof premiumReleaseWork==='function')premiumReleaseWork('shared-setup');document.getElementById('afSharedStatus').textContent='เชื่อมไม่สำเร็จ กรุณาตรวจสิทธิ์ Google Sheets และระบบต้นทาง';}).afInitializeSharedSignals();
+  });
+  google.script.run.withSuccessHandler(sharedStatus).withFailureHandler(function(){document.getElementById('afSharedStatus').textContent='ยังอ่านสถานะชีตร่วมไม่ได้';}).afSharedStatus();
   document.getElementById('afResearchExport').addEventListener('click',function(){
    if(!lastResult){status('ยังไม่มีผลตรวจสำหรับดาวน์โหลด');return;}
    var blob=new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -146,4 +154,5 @@
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();
 </script>
+
 

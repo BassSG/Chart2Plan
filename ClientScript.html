@@ -4,6 +4,9 @@
     let isEditMode = false;
     let aiLoadingInterval;
     let currentStep = 1;
+    const CUSTOM_MODELS_KEY = 'af.customModels';
+    const AI_MODEL_PREFERENCE_KEY = 'af.selectedModel';
+    const DEFAULT_AI_MODEL = 'google/gemini-3.8-flash';
 
     // Enhanced click effect function
     function addClickEffect(element) {
@@ -328,9 +331,6 @@
     }
 
 /* ===== Custom AI-Model management ===== */
-const CUSTOM_MODELS_KEY = 'af.customModels';
-const AI_MODEL_PREFERENCE_KEY = 'af.selectedModel';
-const DEFAULT_AI_MODEL = 'google/gemini-3.8-flash';
 
 function initializeAiModelPreference(){
   const sel=document.getElementById('aiModel');
