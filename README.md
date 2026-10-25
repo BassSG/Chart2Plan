@@ -1,6 +1,6 @@
 # Chart2Plan (Allindy + EBW-Fibo)
 
-> อัปเดต 25 ตุลาคม 2026: รุ่นล่าสุด **38** (`2026-10-25-shared-signal-log-4`) เชื่อมแผน PAPER ลง TAPRO_2 / TAProSignalLog แบบหนึ่งแผนต่อหนึ่งแถว พร้อมตัวติดตามสถานะอัตโนมัติ โดยใช้กฎวิเคราะห์เดิม ตาม **RELEASE_35_TH.md** และ **RELEASE_38_TH.md** ใช้งานผ่าน https://basssg.github.io/Chart2Plan/
+> อัปเดต 25 ตุลาคม 2026: รุ่นล่าสุด **39** (`2026-10-25-alerts-and-signal-log`) เชื่อมแผน PAPER ลง TAPRO_2 ครบ TAProAlerts (Entry / SL / TP1) และ TAProSignalLog (แถวสรุป) พร้อมตัวติดตามสถานะอัตโนมัติ โดยใช้กฎวิเคราะห์เดิม ตาม **RELEASE_39_TH.md** ใช้งานผ่าน https://basssg.github.io/Chart2Plan/
 
 > **AI Trading Decision Support & Evidence-Based Execution Engine**  
 > ผสานตรรกะ **All Indy 1.3.5** และ **EBW-Fibo 1.10.19** เป็นระบบวางแผนการเทรดคำนวณราคาล่วงหน้า (Deterministic Planning) และติดตามผลจำลอง (Audit Ledger) บน Google Apps Script และ Web App / PWA สำหรับโทรศัพท์มือถือ
@@ -10,7 +10,7 @@
 ## 📱 Web App & Mobile Application (PWA)
 
 - **ลิงก์ใช้งาน Web App:** [เปิดใช้งาน Chart2Plan](https://script.google.com/macros/s/AKfycbxShlJXB7L1ctoDWG0TV9exyI3SQUA66cypHoeYUmID3_NUzVoREz39yLi1OnWnksNs9g/exec)
-- **สถานะ:** Revision `2026-10-25-shared-signal-log-4` (Mode: TEST / Live Trading: False)
+- **สถานะ:** Revision `2026-10-25-alerts-and-signal-log` (Mode: TEST / Live Trading: False)
 
 ### 📲 วิธีติดตั้งเป็น Application บนโทรศัพท์มือถือ (iOS & Android)
 
@@ -92,5 +92,3 @@ node Planner.test.cjs      # 41 test groups passed
 node ResearchLog.test.cjs  # 46 test groups passed
 ```
 **รวมทั้งสิ้น 87 การทดสอบ ผ่านครบถ้วน 100%**
-
-

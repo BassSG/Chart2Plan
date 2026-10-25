@@ -130,7 +130,7 @@
   Array.from(document.getElementById('qcLevel').options).forEach(function(o){o.textContent=o.textContent.replace('%',' คะแนน');});
   section.querySelectorAll('button[data-action]').forEach(function(b){b.addEventListener('click',function(){rpc(b.dataset.action);});});
   if(typeof premiumSyncWorkButtons==='function')premiumSyncWorkButtons();
-  function sharedStatus(v){var box=document.getElementById('afSharedStatus');box.textContent=v.enabled?'บันทึกที่ TAPRO_2 / TAProSignalLog · '+(v.monitorInstalled?'ติดตามผ่านระบบเดิมทุก 5 นาที':'ยังไม่ได้เปิดตัวติดตาม')+(v.lastError?' · มีงานรอซิงก์':''):'ยังไม่ได้เชื่อมชีตติดตามร่วม';}
+  function sharedStatus(v){var box=document.getElementById('afSharedStatus');box.textContent=v.enabled?'บันทึก TAProAlerts + TAProSignalLog · '+(v.monitorInstalled?'ติดตามผ่านระบบเดิมทุก 5 นาที':'ยังไม่ได้เปิดตัวติดตาม')+(v.lastError?' · มีงานรอซิงก์':''):'ยังไม่ได้เชื่อมชีตติดตามร่วม';}
   document.getElementById('afSharedConnect').addEventListener('click',function(){
    var button=this;if(typeof premiumAcquireWork==='function'&&!premiumAcquireWork('shared-setup','เชื่อมชีตติดตาม'))return;
    button.disabled=true;document.getElementById('afSharedStatus').textContent='กำลังเชื่อมชีตและเปิดตัวติดตาม · ไม่มีการเรียก AI';
@@ -154,5 +154,3 @@
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();
 </script>
-
-

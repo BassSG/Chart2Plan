@@ -51,8 +51,7 @@ try{
   if($LASTEXITCODE -ne 0){throw 'Clasp push failed'}
  }
  if($Deploy){
-  & clasp deploy --deploymentId $afDeploymentId --description 'Shared one-row PAPER SignalLog, automatic lifecycle monitoring, original analysis rules'
+  & clasp deploy --deploymentId $afDeploymentId --description 'TAProAlerts Entry-SL-TP mirror and one-row SignalLog; PAPER-only; original Allindy analysis'
   if($LASTEXITCODE -ne 0){throw 'Clasp deploy failed'}
  }
 }finally{Pop-Location}
-

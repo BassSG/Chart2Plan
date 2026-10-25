@@ -1,5 +1,9 @@
 /* Install in the existing TAPro project, beside its native Push module.
  * Observes only shared Allindy PAPER rows; it never creates alerts or trade commands. */
+function taproIsAllindyPaperRow_(row,headers){
+  var source=(headers||[]).indexOf('Plan Source');
+  return source>=0&&row[source]==='ALLINDY_FIBO';
+}
 function taproObserveAllindySharedSafe_(lockAlreadyHeld){
   var lock=lockAlreadyHeld?null:LockService.getScriptLock();
   if(lock&&!lock.tryLock(1))return {skipped:'LOCK_BUSY'};
@@ -35,4 +39,3 @@ function taproObserveAllindySharedSafe_(lockAlreadyHeld){
 function taproSyncAllindySharedSignals(){
   var result=taproObserveAllindySharedSafe_(false);taproNativeFlushSafe_();Logger.log(JSON.stringify(result));return result;
 }
-

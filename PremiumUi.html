@@ -185,7 +185,7 @@ function premiumJourney(item,passed) {
   const steps=[
     {done:ruleDone,title:'กฎคำนวณ',text:known?(f.eligibleCount+' แผนผ่านกฎ จาก '+f.candidateCount):ruleDone?'คัดโซนและคำนวณราคาแล้ว':'ยังไม่มีแผนยืนยัน'},
     {done:ai==='completed',title:ai==='completed'?'AI วิเคราะห์แล้ว':ai==='not_called'?'ยังไม่เรียก AI':'สถานะ AI ยังไม่ยืนยัน',text:ai==='completed'?(passed?'เลือกแผนนี้จากหลักฐาน':'ประเมินแล้ว · รอบนี้ไม่มีแผนพร้อมใช้'):ai==='not_called'?'หยุดก่อนขั้นตอน AI':'ดูรายละเอียดรอบด้านล่าง'},
-    {done:passed&&!sharedPending,title:sharedPending?'รอซิงก์ชีตร่วม':passed?'บันทึกแผนแล้ว':uncertain?'ยังยืนยันการบันทึกไม่ได้':'ยังไม่มีแผนใหม่',text:sharedPending?'แผนบันทึกภายในแล้ว · ระบบจะลองซิงก์อัตโนมัติ':passed&&f.sharedSaveState==='SYNCED'?'TAPRO_2 · หนึ่งแผนต่อหนึ่งแถว':passed?'แผนจำลอง · ไม่ส่งคำสั่งจริง':uncertain?'ตรวจ Run ID ก่อนเริ่มรอบใหม่':'รอรอบที่ผ่านเงื่อนไขครบ'}
+    {done:passed&&!sharedPending,title:sharedPending?'รอซิงก์ชีตร่วม':passed?'บันทึกแผนแล้ว':uncertain?'ยังยืนยันการบันทึกไม่ได้':'ยังไม่มีแผนใหม่',text:sharedPending?'แผนบันทึกภายในแล้ว · ระบบจะลองซิงก์อัตโนมัติ':passed&&f.sharedSaveState==='SYNCED'?'TAProAlerts ครบ 3 จุด · มีแถวสรุป':passed?'แผนจำลอง · ไม่ส่งคำสั่งจริง':uncertain?'ตรวจ Run ID ก่อนเริ่มรอบใหม่':'รอรอบที่ผ่านเงื่อนไขครบ'}
   ];
   return '<ol class="c2p-journey" aria-label="สถานะการวิเคราะห์">'+steps.map((s,i)=>'<li class="'+(s.done?'is-done':'is-wait')+'"><span class="c2p-journey-icon">'+(s.done?'✓':i+1)+'</span><div><strong>'+e(s.title)+'</strong><small>'+e(s.text)+'</small></div></li>').join('')+'</ol>';
 }
@@ -327,5 +327,3 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Independent GAS app: no messages to the production wrapper.
 });
 </script>
-
-

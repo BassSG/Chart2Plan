@@ -25,6 +25,7 @@ const ctx=vm.createContext({console,Date,Number,JSON,Math,Array,String,Object,
  ScriptApp:{getProjectTriggers:()=>triggers,deleteTrigger:t=>{triggers=triggers.filter(x=>x!==t);},newTrigger:handler=>({timeBased(){return this;},everyMinutes(n){assert.equal(n,1);return this;},create(){triggers.push({getHandlerFunction:()=>handler});}})},
  afResearchHash_:s=>'H:'+crypto.createHash('sha256').update(s).digest('hex'),afResearchCell_:v=>typeof v==='string'&&/^[\s]*[=+\-@]/.test(v)?"'"+v:v,
  afSoloIdentity_:()=>({username:'owner-test'}),afRequireUser_(){},afResearchLock_:fn=>fn(),afResearchBookLocked_:()=>({}),afPaperLatest_:()=>plans,
+ afSharedPrepareAlerts_(){},afSharedSyncAlerts_:()=>({rows:[1,2,3],url:'https://docs.google.com/spreadsheets/d/1jG-yyEs6PrRH1TK8VjQ4setEscwXC0cwAUCVghh3DZk/edit#gid=0'}),afSharedAlertsUrl_:()=> 'https://docs.google.com/spreadsheets/d/1jG-yyEs6PrRH1TK8VjQ4setEscwXC0cwAUCVghh3DZk/edit#gid=0',afSharedAlertCancellationRequested_:()=>false,
  AF_RESEARCH_VERSION:'AF-RESEARCH-3',afJson_:x=>x,afPaperSummary_:p=>({counts:{PENDING:p.filter(x=>x.state==='PENDING').length,ACTIVE:p.filter(x=>x.state==='ACTIVE').length}}),
  afPaperRefreshLocked_:(user,opts)=>{refreshOptions=opts;return {counts:{PENDING:0,ACTIVE:0},changed:1,feed:'VERIFIED_CLOSED_M1'};},
  afCallAnalyst_(){aiCalls++;throw Error('Unexpected paid AI call');}
@@ -65,4 +66,3 @@ group('the existing Push bridge seeds imports and never enters an order path',()
  seen.length=0;const next=context.taproObserveAllindySharedSafe_(false);assert.equal(next.seeded,0);assert.ok(seen.some(r=>r['Shared Imported']==='YES'));assert.equal(next.brokerCommands,0);
 });
 console.log('SharedSignals: '+groups+' groups passed; AI calls '+aiCalls+'; no external writes.');
-

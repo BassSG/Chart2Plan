@@ -1,5 +1,5 @@
 /* One PAPER plan per shared SignalLog row. The research ledger remains the state authority.
- * No TAProAlerts writes, broker commands, model calls, or notification credentials. */
+ * TAProAlerts is mirrored through SharedAlerts.gs; no broker commands or model calls. */
 var AF_SHARED_CONFIG=Object.freeze({version:'AF-SHARED-SIGNALS-1',source:'ALLINDY_FIBO',
   spreadsheetId:'1jG-yyEs6PrRH1TK8VjQ4setEscwXC0cwAUCVghh3DZk',sheetName:'TAProSignalLog',sheetId:42397460});
 var AF_SHARED_HEADERS=['Plan Source','Plan Key','Order Type','Pending ExpiresAt','Hold Until','Plan State',
@@ -124,19 +124,19 @@ function afSharedObservePaper_(book,p){
   if(!afSharedEnabled_())return {success:false,state:'NOT_CONNECTED',url:afSharedUrl_()};
   var props=PropertiesService.getScriptProperties(),key=afSharedDirtyKey_(p);
   props.setProperty(key,p.key);props.setProperty('AF_SHARED_NEEDS_SCAN','1');
-  try{var result=afSharedUpsertLocked_(book,p,AF_SHARED_IMPORTING);props.deleteProperty(key);return result;}
+  try{var alerts=afSharedSyncAlerts_(book,p),result=afSharedUpsertLocked_(book,p,AF_SHARED_IMPORTING);result.alertRows=alerts.rows;result.alertsUrl=alerts.url;props.deleteProperty(key);return result;}
   catch(error){var code=afSharedCode_(error);props.setProperty('AF_SHARED_LAST_ERROR',code);return {success:false,state:'RETRY_PENDING',code:code,url:afSharedUrl_()};}
 }
 function afSharedStatus(){
-  var p=PropertiesService.getScriptProperties();return {enabled:afSharedEnabled_(),url:afSharedUrl_(),sheet:'TAProSignalLog',source:'Allindy + Fibo',
+  var p=PropertiesService.getScriptProperties();return {enabled:afSharedEnabled_(),alertsReady:p.getProperty('AF_SHARED_ALERTS_READY')==='1',url:afSharedUrl_(),alertsUrl:afSharedAlertsUrl_(),sheet:'TAProSignalLog',source:'Allindy + Fibo',
     monitorInstalled:p.getProperty('AF_SHARED_MONITOR_MODE')==='TAPRO_SCHEDULER',monitorConnected:!!p.getProperty('AF_SHARED_MONITOR_REQUESTED_AT'),intervalMinutes:5,lastCheckedAt:Number(p.getProperty('AF_SHARED_LAST_CHECKED'))||null,
     lastResult:p.getProperty('AF_SHARED_LAST_RESULT')||null,lastError:p.getProperty('AF_SHARED_LAST_ERROR')||null,realBroker:false};
 }
 function afInitializeSharedSignals(){
   afRequireUser_(afSoloIdentity_().username);return afResearchLock_(function(){
-    AF_SHARED_CACHE=null;afSharedSchema_(true);
+    AF_SHARED_CACHE=null;afSharedSchema_(true);afSharedPrepareAlerts_();
     var props=PropertiesService.getScriptProperties(),book=afResearchBookLocked_(),plans=afPaperLatest_(book,afResearchHash_(afSoloIdentity_().username)),saved=0,waiting=0;
-    props.setProperty('AF_SHARED_ENABLED','1');if(!props.getProperty('AF_SHARED_STARTED_AT'))props.setProperty('AF_SHARED_STARTED_AT',String(Date.now()));
+    props.setProperty('AF_SHARED_ENABLED','1');props.setProperty('AF_SHARED_ALERTS_READY','1');if(!props.getProperty('AF_SHARED_STARTED_AT'))props.setProperty('AF_SHARED_STARTED_AT',String(Date.now()));
     AF_SHARED_IMPORTING=true;
     try{plans.forEach(function(p){var r=afSharedObservePaper_(book,p);r.success?saved++:waiting++;});}finally{AF_SHARED_IMPORTING=false;}
     props.setProperty('AF_SHARED_MONITOR_MODE','TAPRO_SCHEDULER');props.setProperty('AF_SHARED_ACTIVE_COUNT',String(plans.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state);}).length));
@@ -152,7 +152,9 @@ function afSharedMonitor(){
   var lock=LockService.getScriptLock();if(!lock.tryLock(1))return {skipped:'ANALYSIS_BUSY',aiCalls:0};
   try{
     props.setProperty('AF_SHARED_MONITOR_LAST_STARTED',String(Date.now()));
-    var user=afSoloIdentity_().username,book=afResearchBookLocked_(),plans=afPaperLatest_(book,afResearchHash_(user)),open=plans.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state);});
+    var user=afSoloIdentity_().username,book=afResearchBookLocked_(),plans=afPaperLatest_(book,afResearchHash_(user));
+    plans.forEach(function(p){if(afSharedAlertCancellationRequested_(p)){p.state='CANCELLED';p.reason='USER_CANCELLED_SHARED_ALERTS';afPaperCommit_(book,p,'CANCELLED','PENDING');}});
+    var open=plans.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state);});
     plans.filter(function(p){return open.indexOf(p)>=0||dirty.some(function(k){return all[k]===p.key;});}).forEach(function(p){afSharedObservePaper_(book,p);});
     var oldest=open.reduce(function(t,p){return Math.min(t,p.lastBarClose);},Date.now()),limit=Math.max(30,Math.min(3000,Math.ceil((Date.now()-oldest)/60000)+3));
     var result=open.length?afPaperRefreshLocked_(user,{plans:plans,limit:limit}):afPaperSummary_(plans);
@@ -172,4 +174,3 @@ function afSharedMonitorRequest_(e){
   PropertiesService.getScriptProperties().setProperty('AF_SHARED_MONITOR_REQUESTED_AT',String(Date.now()));
   return afJson_(Object.assign({accepted:true},afSharedMonitor()));
 }
-

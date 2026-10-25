@@ -1,0 +1,59 @@
+diff --git a/OrderLifecycle.js b/OrderLifecycle.js
+index 6abd260..75721f6 100644
+--- a/OrderLifecycle.js
++++ b/OrderLifecycle.js
+@@ -252,6 +252,7 @@ function taproMonitorLifecycle_(lockAlreadyHeld=false, closeSession=false) {
+     Logger.log('MONITOR_STAGE ALERTS_READ '+JSON.stringify({rows:rows.length,elapsedMs:Date.now()-started}));
+     const groups={};
+     rows.slice(1).forEach((row,i)=>{
++      if(typeof taproIsAllindyPaperRow_==='function'&&taproIsAllindyPaperRow_(row,rows[0]))return;
+       if(!row[7]||!row[9])return;const key=String(row[7])+'|'+row[2]+'|'+row[9];
+       if(!groups[key])groups[key]=[];groups[key].push({row,index:i+2});
+     });
+
+diff --git a/EaBridge.js b/EaBridge.js
+index 629b82c..a72526c 100644
+--- a/EaBridge.js
++++ b/EaBridge.js
+@@ -13,6 +13,7 @@ function taproEaSnapshot_(rows, nowSec, username, openHours) {
+   const groups={};
+   for(let i=1;i<rows.length;i++) {
+     const row=rows[i],runId=String(row[7]||'').trim();
++    if(typeof taproIsAllindyPaperRow_==='function'&&taproIsAllindyPaperRow_(row,headers))continue;
+     if(!runId || String(row[9]||'')!==username)continue;
+     if(!groups[runId])groups[runId]=[];
+     groups[runId].push(row);
+
+diff --git a/TradeCommandOutbox.js b/TradeCommandOutbox.js
+index 6f9cdd0..28f1b38 100644
+--- a/TradeCommandOutbox.js
++++ b/TradeCommandOutbox.js
+@@ -46,6 +46,7 @@ function taproCommandReconcileRows_(rows){
+   const col=(rows[0]||[]).indexOf('Lifecycle JSON');if(col<0)return;
+   const now=Date.now()/1000;
+   for(const row of rows.slice(1)){
++    if(typeof taproIsAllindyPaperRow_==='function'&&taproIsAllindyPaperRow_(row,rows[0]))continue;
+     if(row[8]!=='Entry'||!row[7]||!row[9])continue;
+     let s;try{s=JSON.parse(row[col]||'null');}catch(_){continue;}
+     // Bound bootstrap to recent plans; never turn an expired historical WAIT into a new order.
+@@ -59,6 +60,7 @@ function taproCommandCancelRows_(rows,runId,symbol,username,reason){
+   const col=(rows[0]||[]).indexOf('Lifecycle JSON');
+   const owned=rows.slice(1).filter(r=>String(r[7])===String(runId)&&(!symbol||r[2]===symbol)&&(!username||String(r[9]).toLowerCase()===String(username).toLowerCase()));
+   const row=owned.find(r=>r[8]==='Entry')||owned[0];if(!row)return;
++  if(typeof taproIsAllindyPaperRow_==='function'&&taproIsAllindyPaperRow_(row,rows[0]))return;
+   let state;try{state=col>=0?JSON.parse(row[col]||'null'):null;}catch(_){state=null;}
+   if(!taproCommandBuild_(String(row[7]),String(row[2]),String(row[9]),state,reason||'USER_CANCELLED')){
+     // Recover immutable levels from the durable publication if the source row was interrupted/corrupted.
+
+diff --git a/NewsGuard.js b/NewsGuard.js
+index af8b3c8..0e68be4 100644
+--- a/NewsGuard.js
++++ b/NewsGuard.js
+@@ -152,6 +152,7 @@ function taproNewsFilterCommand_(x){
+ function taproNewsReconcileReviewRows_(rows){
+   const col=(rows[0]||[]).indexOf('Lifecycle JSON');if(col<0)return;
+   for(const row of rows.slice(1)){
++    if(typeof taproIsAllindyPaperRow_==='function'&&taproIsAllindyPaperRow_(row,rows[0]))continue;
+     if(row[8]!=='Entry'||!row[7]||!row[9])continue;
+     try{
+       const state=JSON.parse(row[col]||'null');

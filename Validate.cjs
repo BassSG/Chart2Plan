@@ -1,10 +1,10 @@
 const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert/strict'),cp=require('child_process');
 const root=path.resolve(process.argv[2]||__dirname),out=path.resolve('outputs/daytrade-validation');fs.mkdirSync(out,{recursive:true});
 const reports={date:new Date().toISOString(),tests:[],syntax:{},deploymentChanged:false,aiCalls:0,pineRuntimeParityVerified:false};
-for(const name of ['SharedSignals.test.cjs','ClientStartup.test.cjs']){
+for(const name of ['SharedSignals.test.cjs','SharedAlerts.test.cjs','ClientStartup.test.cjs']){
  const r=cp.spawnSync(process.execPath,[path.join(root,name)],{cwd:root,encoding:'utf8',timeout:120000});
  fs.writeFileSync(path.join(out,name+'.log'),r.stdout+(r.stderr||''));assert.equal(r.status,0,name+' failed');
- reports.tests.push({name,passed:Number(r.stdout.match(/(?:SharedSignals:|ClientStartup:) (\d+)/)[1]),failed:0});
+ reports.tests.push({name,passed:Number(r.stdout.match(/(?:SharedSignals:|SharedAlerts:|ClientStartup:) (\d+)/)[1]),failed:0});
 }
 for(const name of ['Planner.test.cjs','ResearchLog.test.cjs']){
  const r=cp.spawnSync(process.execPath,[path.join(root,name)],{cwd:root,encoding:'utf8',timeout:120000});
@@ -34,4 +34,3 @@ for(const name of fs.readdirSync(root).filter(n=>n.endsWith('.html'))){
 }
 reports.syntax={gasFiles:files.length,combinedGlobalScope:'passed',duplicateGlobalFunctions:0,htmlScripts,globalsInitialized:'passed',scope:'Local Node V8 parse/evaluation with no service calls; not live GAS execution'};
 fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(reports,null,2));console.log(JSON.stringify(reports,null,2));
-
