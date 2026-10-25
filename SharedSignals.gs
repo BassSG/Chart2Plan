@@ -55,16 +55,17 @@ function afSharedCompactRow_(schema,index,force){
   }
 }
 function afSharedState_(p){
-  var entered=Number.isFinite(p.fillAt),entry=entered?'Triggered':p.state==='PENDING'?'Active':p.state==='REVIEW'?'Unknown':'Not Filled';
+  var view=afPaperView_(p),entered=Number.isFinite(p.fillAt),entry=entered?'Triggered':p.state==='PENDING'?'Active':p.state==='REVIEW'?'Unknown':'Not Filled';
   var exit={PENDING:'WAITING',ACTIVE:'WAITING',TP:'TP1',SL:'SL',EXPIRED:'Expired',CANCELLED:'Cancelled',REVIEW:'REVIEW',TIME_EXIT:'TIME_EXIT'}[p.state];
   var outcome={PENDING:'OPEN',ACTIVE:'OPEN',TP:'WIN',SL:'LOSS',EXPIRED:'CANCELLED',CANCELLED:'CANCELLED',REVIEW:'REVIEW',TIME_EXIT:'TIME_EXIT'}[p.state];
   if(!exit||!outcome)throw Error('AF_SHARED_STATE_INVALID');
+  if(view.awaitingData){entry=entered?'Triggered':'Unknown';exit='REVIEW';outcome='REVIEW';}
   return {entry:entry,exit:exit,outcome:outcome};
 }
 function afSharedRow_(schema,p,meta,old,imported,now){
   if(!p||!p.key||!p.runId||![1,-1].includes(p.side)||![p.entry,p.stop,p.target,p.createdAt,p.expiresAt].every(Number.isFinite)||
     !(p.entry>0&&p.stop>0&&p.target>0&&p.side*(p.entry-p.stop)>0&&p.side*(p.target-p.entry)>0))throw Error('AF_SHARED_PLAN_INVALID');
-  var map=schema.map,row=old?old.slice():new Array(schema.headers.length).fill(''),state=afSharedState_(p),risk=Math.abs(p.entry-p.stop),reward=Math.abs(p.target-p.entry);
+  var map=schema.map,row=old?old.slice():new Array(schema.headers.length).fill(''),state=afSharedState_(p),view=afPaperView_(p,now),risk=Math.abs(p.entry-p.stop),reward=Math.abs(p.target-p.entry);
   function put(h,v){if(map[h]!==undefined)row[map[h]]=v==null?'':v;}
   function date(t){return Number.isFinite(t)?new Date(t):'';}
   var profile='Allindy + Fibo · '+String(meta.model||'unknown'),e=p.metadata&&p.metadata.evidence||{};
@@ -73,7 +74,7 @@ function afSharedRow_(schema,p,meta,old,imported,now){
   put('Entry',p.entry);put('SL',p.stop);put('TP1',p.target);put('TPMost','');put('Risk Distance',risk);put('Reward Distance',reward);put('Planned RR',reward/risk);
   put('ATR',meta.atr);put('Spread',p.costs&&p.costs.spread);put('Current Price',meta.spot);
   put('QC Score',meta.score);put('QC Threshold',meta.threshold);put('QC Version',p.metadata&&p.metadata.ruleVersion||AF_RESEARCH_VERSION);
-  put('QC Reasons',p.reason);put('QC Notes','Allindy + Fibo · PAPER · คะแนนหลักฐานไม่ใช่โอกาสชนะ');
+  put('QC Reasons',p.reason);put('QC Notes',view.label+' · Allindy + Fibo · PAPER · คะแนนหลักฐานไม่ใช่โอกาสชนะ');
   put('QC Breakdown JSON',JSON.stringify({zoneId:e.zoneId||null,fiboId:e.fiboId||null,executionTF:p.executionTF,contextTF:e.contextTF||null}));
   put('Entry Assessment','ราคาจากโซน Allindy และ Fibo ตามแผนที่ระบบเดิมคำนวณ');
   put('SL Assessment','จุดตัดขาดทุนที่ตรึงไว้ตอนรับแผน');put('TP Assessment','เป้าหมายที่ตรึงไว้ตอนรับแผน');
@@ -84,7 +85,7 @@ function afSharedRow_(schema,p,meta,old,imported,now){
   put('Entry Status',state.entry);put('Exit Status',state.exit);put('Outcome',state.outcome);
   // The legacy PWA poller uses these cells as its own delivery ledger.
   // Imported history and plans that already ended must not become a late NEW_ORDER.
-  if(map['New Order NotifiedAt']!==undefined&&!row[map['New Order NotifiedAt']]&&((!old&&imported)||!['PENDING','ACTIVE'].includes(p.state)))
+  if(map['New Order NotifiedAt']!==undefined&&!row[map['New Order NotifiedAt']]&&((!old&&imported)||!['PENDING','ACTIVE'].includes(p.state)||view.awaitingData))
     put('New Order NotifiedAt',!old&&imported?'AF_IMPORT_NO_BACKFILL':'AF_ENDED_OR_REVIEW_NO_NEW_ORDER');
   if(!old&&imported&&['WIN','LOSS'].includes(state.outcome)&&map['Final NotifiedAt']!==undefined&&!row[map['Final NotifiedAt']])put('Final NotifiedAt','AF_IMPORT_NO_BACKFILL');
   put('Realized R',['TP','SL','TIME_EXIT'].includes(p.state)&&Number.isFinite(p.pnlPrice)&&Number.isFinite(p.fillAt)?p.pnlPrice/risk:'');
@@ -92,8 +93,10 @@ function afSharedRow_(schema,p,meta,old,imported,now){
   put('Plan Source',AF_SHARED_CONFIG.source);put('Plan Key',p.key);put('Order Type',p.side===1?'Buy Limit':'Sell Limit');
   put('Pending ExpiresAt',date(p.expiresAt));put('Hold Until',date(p.holdUntil));put('Plan State',p.state);put('Net Planned RR',p.netR);
   put('Monitoring Mode','PAPER');put('Source Revision',p.revision);put('Signal Text',String(meta.message||'').slice(0,30000));
-  put('Shared Imported',old?old[map['Shared Imported']]||'NO':imported?'YES':'NO');put('Monitor CheckedAt',new Date(now));put('Sync Status','SYNCED');
-  put('Plan State JSON',JSON.stringify({version:AF_RESEARCH_VERSION,activationAt:p.activationAt,reason:p.reason,
+  put('Shared Imported',old?old[map['Shared Imported']]||'NO':imported?'YES':'NO');
+  var completed=Number(PropertiesService.getScriptProperties().getProperty('AF_SHARED_LAST_CHECKED'));
+  put('Monitor CheckedAt',completed>=p.createdAt?new Date(completed):'');put('Sync Status','SYNCED');
+  put('Plan State JSON',JSON.stringify({version:AF_RESEARCH_VERSION,view:view,activationAt:p.activationAt,reason:p.reason,
     horizon:p.horizon,fillAt:p.fillAt,fillPrice:p.fillPrice,exitAt:p.exitAt,exitPrice:p.exitPrice,pnlPrice:p.pnlPrice,lastBarClose:p.lastBarClose,costs:p.costs,realBroker:false}));
   if(row.some(function(v){return typeof v==='string'&&v.length>45000;}))throw Error('AF_SHARED_CELL_TOO_LARGE');
   return row.map(afResearchCell_);
@@ -104,9 +107,11 @@ function afSharedUpsertLocked_(book,p,imported){
     if(old[map['Plan Source']]!==AF_SHARED_CONFIG.source||String(old[map['Run ID']])!==p.runId)throw Error('AF_SHARED_IDENTITY_CONFLICT');
     if(['Entry','SL','TP1'].some(function(h,i){return Number(old[map[h]])!==[p.entry,p.stop,p.target][i];}))throw Error('AF_SHARED_LEVELS_CHANGED');
     if(Number(old[map['Source Revision']])>p.revision)throw Error('AF_SHARED_REVISION_CONFLICT');
-    if(Number(old[map['Source Revision']])===p.revision){
+    var projected=afSharedState_(p),view=afPaperView_(p);
+    if(Number(old[map['Source Revision']])===p.revision&&old[map['Entry Status']]===projected.entry&&old[map['Exit Status']]===projected.exit&&old[map.Outcome]===projected.outcome){
       afSharedCompactRow_(schema,index,false);
-      if(['PENDING','ACTIVE'].includes(p.state))sheet.getRange(index,map['Monitor CheckedAt']+1).setValue(new Date());
+      var checked=Number(PropertiesService.getScriptProperties().getProperty('AF_SHARED_LAST_CHECKED'));
+      if(checked>=p.createdAt)sheet.getRange(index,map['Monitor CheckedAt']+1).setValue(new Date(checked));
       return {success:true,state:'SYNCED',row:index,url:afSharedUrl_(index),deduplicated:true};
     }
   }
@@ -128,9 +133,9 @@ function afSharedObservePaper_(book,p){
   catch(error){var code=afSharedCode_(error);props.setProperty('AF_SHARED_LAST_ERROR',code);return {success:false,state:'RETRY_PENDING',code:code,url:afSharedUrl_()};}
 }
 function afSharedStatus(){
-  var p=PropertiesService.getScriptProperties();return {enabled:afSharedEnabled_(),alertsReady:p.getProperty('AF_SHARED_ALERTS_READY')==='1',url:afSharedUrl_(),alertsUrl:afSharedAlertsUrl_(),sheet:'TAProSignalLog',source:'Allindy + Fibo',
-    monitorInstalled:p.getProperty('AF_SHARED_MONITOR_MODE')==='TAPRO_SCHEDULER',monitorConnected:!!p.getProperty('AF_SHARED_MONITOR_REQUESTED_AT'),intervalMinutes:5,lastCheckedAt:Number(p.getProperty('AF_SHARED_LAST_CHECKED'))||null,
-    lastResult:p.getProperty('AF_SHARED_LAST_RESULT')||null,lastError:p.getProperty('AF_SHARED_LAST_ERROR')||null,realBroker:false};
+  var p=PropertiesService.getScriptProperties();return Object.assign({enabled:afSharedEnabled_(),alertsReady:p.getProperty('AF_SHARED_ALERTS_READY')==='1',url:afSharedUrl_(),alertsUrl:afSharedAlertsUrl_(),sheet:'TAProSignalLog',source:'Allindy + Fibo',
+    monitorInstalled:p.getProperty('AF_SHARED_MONITOR_MODE')==='TAPRO_SCHEDULER',intervalMinutes:5,
+    lastResult:p.getProperty('AF_SHARED_LAST_RESULT')||null,lastError:p.getProperty('AF_SHARED_LAST_ERROR')||null,realBroker:false},afSharedHealth_(p,Date.now()));
 }
 function afInitializeSharedSignals(){
   afRequireUser_(afSoloIdentity_().username);return afResearchLock_(function(){
@@ -158,9 +163,19 @@ function afSharedMonitor(){
     plans.filter(function(p){return open.indexOf(p)>=0||dirty.some(function(k){return all[k]===p.key;});}).forEach(function(p){afSharedObservePaper_(book,p);});
     var oldest=open.reduce(function(t,p){return Math.min(t,p.lastBarClose);},Date.now()),limit=Math.max(30,Math.min(3000,Math.ceil((Date.now()-oldest)/60000)+3));
     var result=open.length?afPaperRefreshLocked_(user,{plans:plans,limit:limit}):afPaperSummary_(plans);
+    var outcome=result.feed||'NO_OPEN_PLANS';
+    if(result.feed==='VERIFIED_CLOSED_M1'){
+      props.setProperty('AF_SHARED_LAST_READ_AT',String(Date.now()));
+      if(Number.isFinite(result.latestClosedAt))props.setProperty('AF_SHARED_LAST_CANDLE_AT',String(result.latestClosedAt));
+      if(result.replayedBars>0)props.setProperty('AF_SHARED_LAST_VERIFIED_AT',String(Date.now()));else outcome='NO_NEW_CLOSED_M1';
+    }
     props.setProperty('AF_SHARED_ACTIVE_COUNT',String((result.counts.PENDING||0)+(result.counts.ACTIVE||0)));props.deleteProperty('AF_SHARED_NEEDS_SCAN');
-    props.setProperty('AF_SHARED_LAST_CHECKED',String(Date.now()));props.setProperty('AF_SHARED_LAST_RESULT',result.feed||'NO_OPEN_PLANS');
-    var remaining=Object.keys(props.getProperties()).filter(function(k){return k.indexOf('AF_SHARED_DIRTY_')===0;});if(!remaining.length)props.deleteProperty('AF_SHARED_LAST_ERROR');
+    props.setProperty('AF_SHARED_LAST_CHECKED',String(Date.now()));props.setProperty('AF_SHARED_LAST_RESULT',outcome);
+    // Re-read committed versions; replay may have advanced a plan. Update derived
+    // deadline warnings after completion, without overwriting a newer revision.
+    var latest=afPaperLatest_(book,afResearchHash_(user));
+    latest.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state)||dirty.some(function(k){return all[k]===p.key;});}).forEach(function(p){afSharedObservePaper_(book,p);});
+    var remaining=Object.keys(props.getProperties()).filter(function(k){return k.indexOf('AF_SHARED_DIRTY_')===0;});if(!remaining.length){props.deleteProperty('AF_SHARED_LAST_ERROR');props.deleteProperty('AF_SHARED_NEEDS_SCAN');}
     return {success:remaining.length===0,feed:result.feed||null,changed:result.changed||0,retryPending:remaining.length,aiCalls:0,realBroker:false};
   }catch(error){var code=afSharedCode_(error);props.setProperty('AF_SHARED_LAST_ERROR',code);return {success:false,code:code,aiCalls:0,realBroker:false};}
   finally{lock.releaseLock();}

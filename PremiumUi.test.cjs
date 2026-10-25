@@ -91,4 +91,9 @@ assert.match(template,/id="analysisResult"/);assert.match(template,/id="c2pResea
 const research=fs.readFileSync(path.join(__dirname,'ResearchUi.html'),'utf8');assert.match(research,/createElement\('details'\)/);assert.match(research,/ส่วนนี้ไม่เรียก AI/);
 assert.doesNotMatch(context.premiumPlainReason('เหตุผลหลัก\nEntryAssessment: รายละเอียด\nCost (USD): 0.1'),/EntryAssessment|Cost/);
 const partial=context.premiumRenderRecord({status:'SAVE_FAILED_OR_PARTIAL',raw:'AF_STORE_FAILED_OR_PARTIAL',outcome:{kind:'error'},runFacts:{aiState:'completed'}});assert.match(partial,/ยังยืนยันการบันทึกไม่ได้/);assert.doesNotMatch(partial,/>ยังไม่มีแผนใหม่</);
-console.log('PremiumUi original details, busy coordination and AI provenance: 20 cases passed');
+const waiting=context.premiumRenderRecord({raw,runId:'AF:late',status:'PAPER_SIGNAL_READY',outcome:{kind:'pass'},runFacts:{aiState:'completed',paperView:{paperState:'PENDING',expiresAt:1,entryAllowed:true}}});
+assert.match(waiting,/พ้นเวลารอเข้า — รอข้อมูลยืนยันผล/);assert.match(waiting,/หยุดรอเข้าใหม่แล้ว/);assert.match(waiting,/ราคาแผนเดิม · ไม่ใช่จุดเข้าใหม่/);assert.doesNotMatch(waiting,/>แผนพร้อมศึกษา</);
+context.premiumUpdatePaperViews([{runId:'AF:late',view:{paperState:'TP',label:'ถึงเป้า TP',entryAllowed:false,awaitingData:false}}]);
+const resolved=context.premiumRenderRecord({raw,runId:'AF:late',status:'PAPER_SIGNAL_READY',outcome:{kind:'pass'},runFacts:{aiState:'completed'}});
+assert.match(resolved,/ถึงเป้า TP/);assert.doesNotMatch(resolved,/พ้นเวลารอเข้า/);
+console.log('PremiumUi original details, busy coordination, AI provenance and deadline views: 22 cases passed');

@@ -138,7 +138,7 @@ function afAuditRecord_(response,request){
   var result={auditRef:blob.ref,auditHash:blob.hash,planKey:key||null,realBroker:false};
   if(!p)return afResearchAuditDone_(book,owner,key,blob,result);
   var prior=afPaperLatest_(book,owner).find(function(x){return x.key===key;});
-  if(prior){result.deduplicated=true;result.state=prior.state;if(typeof afSharedObservePaper_==='function')result.sharedSave=afSharedObservePaper_(book,prior);return afResearchAuditDone_(book,owner,key,blob,result,'AUDIT_DEDUPLICATED');}
+  if(prior){result.deduplicated=true;result.state=prior.state;result.view=afPaperView_(prior);if(typeof afSharedObservePaper_==='function')result.sharedSave=afSharedObservePaper_(book,prior);return afResearchAuditDone_(book,owner,key,blob,result,'AUDIT_DEDUPLICATED');}
   var e=p.evidence||{},tf=e.executionTF||p.executionTF,tfMs=afPaperTfMs_(p);
   var q=(snapshot||{}).quote||{},spread=typeof q.spread==='number'?q.spread:q.spread_price;
   var state='PENDING',reason='AWAITING_CLOSED_M1';
@@ -156,7 +156,7 @@ function afAuditRecord_(response,request){
     newsCoverage:afResearchClean_(archivedNews),
     state:state,reason:reason,lastBarClose:activationAt,fillAt:null,fillPrice:null,exitAt:null,exitPrice:null,pnlPrice:null,revision:0};
   if(typeof afSharedMetadata_==='function')paper.sharedSignal=afSharedMetadata_(response,request,snapshot,tf);
-  result.sharedSave=afPaperCommit_(book,paper,'CREATED','');result.state=state;return afResearchAuditDone_(book,owner,key,blob,result);
+  result.sharedSave=afPaperCommit_(book,paper,'CREATED','');result.state=state;result.view=afPaperView_(paper);return afResearchAuditDone_(book,owner,key,blob,result);
 }
 function afPaperReview_(p,reason){p.state='REVIEW';p.reason=reason;p.pnlPrice=null;return p;}
 function afPaperHistoricalNews_(p,b){
@@ -230,7 +230,7 @@ function afPaperRefreshLocked_(user,options){
       });feed='VERIFIED_CLOSED_M1';
     }catch(_){feed='UNAVAILABLE_NO_OUTCOMES_INFERRED';bars=[];}
   }
-  var changed=0;
+  var changed=0,replayedBars=0;
   plans=plans.map(function(p){
     if(!['PENDING','ACTIVE'].includes(p.state))return p;
     var before=JSON.stringify(p),from=p.state;
@@ -238,7 +238,7 @@ function afPaperRefreshLocked_(user,options){
       var next=bars.filter(function(b){return b.openTime>=p.lastBarClose;});
       var consumed=[];
       for(var i=0;i<next.length&&['PENDING','ACTIVE'].includes(p.state);i++){
-        consumed.push(next[i]);p=afPaperStep_(p,next[i]);
+        consumed.push(next[i]);p=afPaperStep_(p,next[i]);replayedBars++;
       }
       if(consumed.length)p.replayEvidence=afResearchBlob_(book,{schemaVersion:1,kind:'CLOSED_M1_BID_REPLAY',
         sourceId:'Eightcap-MT5-Live',fetchedAt:now,bars:consumed});
@@ -248,7 +248,7 @@ function afPaperRefreshLocked_(user,options){
     if(JSON.stringify(p)!==before){afPaperCommit_(book,p,'M1_REPLAY',from);changed++;}return p;
   });
   SpreadsheetApp.flush();
-  return Object.assign(afPaperSummary_(plans),{changed:changed,feed:feed,asOf:now});
+  return Object.assign(afPaperSummary_(plans),{changed:changed,feed:feed,asOf:now,replayedBars:replayedBars,latestClosedAt:bars.length?bars[bars.length-1].closeTime:null});
 }
 function afPaperCancel_(user,key){
   afRequireUser_(user);return afResearchLock_(function(){
@@ -260,7 +260,7 @@ function afPaperCancel_(user,key){
 }
 function afPaperPublic_(p){
   return {id:p.key,planKey:p.key,runId:p.runId,auditRef:p.auditRef,symbol:p.symbol,side:p.side,entry:p.entry,stop:p.stop,target:p.target,netR:p.netR,
-    state:p.state,reason:p.reason,createdAt:p.createdAt,activationAt:p.activationAt||p.createdAt,activationModel:p.activationModel||'LEGACY',executionTF:p.executionTF,expiresAt:p.expiresAt,horizon:p.horizon||null,holdUntil:p.holdUntil||null,lastBarClose:p.lastBarClose,
+    state:p.state,view:afPaperView_(p),reason:p.reason,createdAt:p.createdAt,activationAt:p.activationAt||p.createdAt,activationModel:p.activationModel||'LEGACY',executionTF:p.executionTF,expiresAt:p.expiresAt,horizon:p.horizon||null,holdUntil:p.holdUntil||null,lastBarClose:p.lastBarClose,
     fillAt:p.fillAt,fillBarOpen:p.fillBarOpen||null,fillPrice:p.fillPrice,exitAt:p.exitAt,exitPrice:p.exitPrice,pnlPrice:p.pnlPrice,
     costs:p.costs,metadata:p.metadata,realBroker:false};
 }
@@ -288,5 +288,3 @@ function afResearchDashboard(user,includeAudits){
       note:'Modeled paper evidence only. REVIEW is unresolved; no verified broker fills. Desired range is not a trade quota.'});
   });
 }
-
-

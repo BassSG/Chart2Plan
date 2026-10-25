@@ -157,6 +157,18 @@ function premiumRenderOriginalDetails(raw) {
     (sections||'<p class="premium-original-line">ไม่มีข้อความต้นฉบับจากระบบในรอบนี้</p>')+
     '<details class="premium-original-raw"><summary>ดูข้อความดิบแบบเดิม · รวมบรรทัดว่างและรูปแบบเดิมครบ</summary><pre>'+e(raw)+'</pre></details></div></details>';
 }
+const premiumPaperViews={};
+function premiumUpdatePaperViews(plans){
+  plans.forEach(p=>{if(p.runId&&p.view)premiumPaperViews[p.runId]=p.view;});
+  if(typeof analysisHistory!=='undefined'&&typeof currentHistoryIndex!=='undefined'&&analysisHistory[currentHistoryIndex]&&document.getElementById('result'))premiumDisplayRecord(analysisHistory[currentHistoryIndex]);
+}
+function premiumPaperView(item){
+  const source=premiumPaperViews[item.runId]||item.runFacts?.paperView;if(!source)return null;
+  const v={...source};
+  if(v.paperState==='PENDING'&&Number.isFinite(v.expiresAt)&&Date.now()>=v.expiresAt){v.awaitingData=true;v.entryAllowed=false;v.label='พ้นเวลารอเข้า — รอข้อมูลยืนยันผล';}
+  if(v.paperState==='ACTIVE'&&Number.isFinite(v.holdUntil)&&Date.now()>=v.holdUntil){v.awaitingData=true;v.entryAllowed=false;v.label='ครบเวลาถือ — รอข้อมูลยืนยันผล';}
+  return v;
+}
 function premiumRunFacts(response) {
   const a=response?.audit||{},stage=String(a.stage||''),status=String(response?.status||'');
   const candidates=Array.isArray(a.candidates)?a.candidates:null;
@@ -164,7 +176,7 @@ function premiumRunFacts(response) {
   const cost=premiumNumber(response?.cost),usage=response?.usage||{};
   const received=!!a.postChecks?.startedAt||status==='PAPER_SIGNAL_READY'&&response?.success===true||cost!==null||Object.values(usage).some(v=>typeof v==='number'&&v>0);
   let aiState=response?.aiCalled===false||status==='DATA_BUSY'||early.includes(stage)?'not_called':received?'completed':'unknown';
-  return {aiState,candidateCount:candidates?candidates.length:null,eligibleCount:candidates?candidates.filter(c=>c.eligible===true).length:null,
+  return {aiState,paperView:response?.auditRecord?.view||null,candidateCount:candidates?candidates.length:null,eligibleCount:candidates?candidates.filter(c=>c.eligible===true).length:null,
     selectedCandidateId:a.selectedCandidateId||null,weekendTest:a.snapshot?.quote?.weekend_test_mode===true,
     sharedSaveState:response?.sharedSave?.state||null,sharedUrl:/^https:\/\/docs\.google\.com\/spreadsheets\/d\/[A-Za-z0-9_-]+\/edit#gid=\d+(?:&range=A\d+)?$/.test(response?.sharedSave?.url||'')?response.sharedSave.url:null};
 }
@@ -195,19 +207,20 @@ function premiumRenderRecord(item) {
   const match=re=>{const m=raw.match(re);return m?m[1].trim():'—';};
   const price=tag=>match(new RegExp('^'+tag+'\\s*:\\s*([\\d.,]+)','mi'));
   const symbol=opts.symbol||match(/📈\s*(\S+)/),order=match(/^TypeOrder\s*:\s*(.+)$/mi),sell=/sell/i.test(order);
-  const title=passed?(ai==='completed'?'AI เลือกแผนนี้แล้ว':'แผนผ่านเงื่อนไขแล้ว'):outcome.title;
-  const label=passed?'แผนพร้อมศึกษา':isBusy?'กำลังรอ':item.status==='NO_TRADE'?'ยังไม่มีแผนใหม่':outcome.kind==='error'?'ตรวจสอบรอบนี้':'พักรอบนี้';
+  const paperView=premiumPaperView(item),awaiting=paperView?.awaitingData===true,closed=paperView&&!paperView.entryAllowed&&paperView.paperState!=='PENDING';
+  const title=awaiting?paperView.label:closed?paperView.label:passed?(ai==='completed'?'AI เลือกแผนนี้แล้ว':'แผนผ่านเงื่อนไขแล้ว'):outcome.title;
+  const label=awaiting?'รอข้อมูลยืนยันผล':closed?'สถานะแผนที่บันทึกไว้':passed?'แผนพร้อมศึกษา':isBusy?'กำลังรอ':item.status==='NO_TRADE'?'ยังไม่มีแผนใหม่':outcome.kind==='error'?'ตรวจสอบรอบนี้':'พักรอบนี้';
   const qc=item.qcResult||{},pct=premiumNumber(qc.percentage),threshold=premiumNumber(qc.threshold),cost=premiumNumber(item.cost);
   const rr=match(/^TP1\s*:.*?\(RR\s+([\d.:]+)/mi),reason=premiumPlainReason(raw);
   const levels=passed&&/^(buy|sell) limit$/i.test(order)?'<section class="c2p-plan" aria-label="ระดับราคาแผน"><div class="c2p-order"><div><span class="c2p-side '+(sell?'sell':'buy')+'">'+(sell?'SELL LIMIT':'BUY LIMIT')+'</span><h5>'+e(symbol)+' · '+(sell?'รอขายที่โซน':'รอซื้อที่โซน')+'</h5></div><span class="c2p-rr">ผลตอบแทน / ความเสี่ยง <strong>'+e(rr==='—'?'—':rr)+'</strong></span></div><div class="c2p-price-grid">'+[
-    ['entry','จุดเข้า · Entry',price('Entry'),'รอราคาถึงระดับนี้'],['stop','จุดตัดขาดทุน · SL',price('StopLoss'),'ระดับหยุดความเสี่ยง'],['target','จุดทำกำไร · TP',price('TP1'),'เป้าหมายของแผน']
+    ['entry','จุดเข้า · Entry',price('Entry'),awaiting||closed?'ราคาแผนเดิม · ไม่ใช่จุดเข้าใหม่':'รอราคาถึงระดับนี้'],['stop','จุดตัดขาดทุน · SL',price('StopLoss'),'ระดับหยุดความเสี่ยง'],['target','จุดทำกำไร · TP',price('TP1'),'เป้าหมายของแผน']
   ].map(([kind,name,value,hint])=>'<div class="c2p-price '+kind+'"><span>'+e(name)+'</span><strong>'+e(value)+'</strong><small>'+e(hint)+'</small></div>').join('')+'</div></section>':'';
   const quality=pct!==null&&threshold!==null?'<div class="c2p-quality"><div><strong>คะแนนหลักฐาน <b>'+e(pct.toFixed(1))+' <small>/ 100</small></b></strong><span>เกณฑ์รอบนี้ '+e(threshold)+' คะแนน · ไม่ใช่โอกาสชนะ</span></div><div class="premium-quality-track"><span style="width:'+Math.max(0,Math.min(100,pct))+'%"></span><i style="left:'+Math.max(0,Math.min(100,threshold))+'%"></i></div></div>':'';
   const aiLabel=ai==='completed'?'AI วิเคราะห์แล้ว':ai==='not_called'?'รอบนี้ยังไม่เรียก AI':'ยังยืนยันการเรียก AI ไม่ได้';
-  const message=passed?'ใช้ศึกษาแผนจำลอง · ยังไม่มีการส่งคำสั่งเทรดจริง':outcome.description;
+  const message=awaiting?'หยุดรอเข้าใหม่แล้ว · เก็บประวัติไว้รอแท่งราคายืนยันผล':closed?'แสดงราคาและเหตุผลเดิมเพื่ออ่านย้อนหลัง':passed?'ใช้ศึกษาแผนจำลอง · ยังไม่มีการส่งคำสั่งเทรดจริง':outcome.description;
   const shared=item.runFacts?.sharedUrl?'<p class="c2p-market-note"><a href="'+e(item.runFacts.sharedUrl)+'" target="_blank" rel="noopener">'+(item.runFacts.sharedSaveState==='SYNCED'?'เปิดแถวแผนนี้ในชีตติดตามร่วม':'เปิดชีตติดตามร่วม · กำลังรอซิงก์')+'</a></p>':'';
   const technical='<details class="c2p-run-details"><summary>ข้อมูลรอบและค่า AI</summary><dl><dt>สถานะ AI</dt><dd>'+e(aiLabel)+'</dd><dt>โมเดลที่เลือก</dt><dd>'+e(item.model||'—')+'</dd><dt>ค่า AI</dt><dd>'+e(cost!==null?'$'+cost.toFixed(6):ai==='not_called'?'ไม่ได้เรียกในรอบนี้':'ผู้ให้บริการไม่ระบุ / ยังไม่ยืนยัน')+'</dd><dt>Run ID</dt><dd>'+e(item.runId||'—')+'</dd></dl></details>';
-  return '<article class="ai-card premium-result c2p-result" data-outcome="'+e(outcome.kind)+'"><div class="premium-result-top"><span class="premium-outcome '+e(outcome.kind)+'">'+(passed?'✓ ':'')+e(label)+'</span><time class="premium-result-time">'+e(premiumFormatTime(item.createdAt))+'</time></div><h4 class="premium-result-title">'+e(title)+'</h4><p class="premium-result-sub">'+e(message)+'</p>'+premiumJourney(item,passed)+shared+(item.runFacts?.weekendTest||/weekend_test_mode/.test(raw)?'<p class="c2p-market-note">ข้อมูลช่วงตลาดปิด · รอบนี้ใช้ทดสอบแผน</p>':'')+levels+(reason&&!isBusy?'<section class="c2p-reason"><h5>'+(passed?'เหตุผลที่เลือกโซนนี้':'เหตุผลของรอบนี้')+'</h5><p>'+e(reason)+'</p></section>':'')+quality+premiumRenderRejectedPreview(item)+premiumLevelReview(raw)+technical+premiumRenderOriginalDetails(raw)+'</article>';
+  return '<article class="ai-card premium-result c2p-result" data-outcome="'+e(awaiting?'wait':outcome.kind)+'"><div class="premium-result-top"><span class="premium-outcome '+e(awaiting?'wait':outcome.kind)+'">'+(passed&&!awaiting&&!closed?'✓ ':'')+e(label)+'</span><time class="premium-result-time">'+e(premiumFormatTime(item.createdAt))+'</time></div><h4 class="premium-result-title">'+e(title)+'</h4><p class="premium-result-sub">'+e(message)+'</p>'+premiumJourney(item,passed)+shared+(item.runFacts?.weekendTest||/weekend_test_mode/.test(raw)?'<p class="c2p-market-note">ข้อมูลช่วงตลาดปิด · รอบนี้ใช้ทดสอบแผน</p>':'')+levels+(reason&&!isBusy?'<section class="c2p-reason"><h5>'+(passed?'เหตุผลที่เลือกโซนนี้':'เหตุผลของรอบนี้')+'</h5><p>'+e(reason)+'</p></section>':'')+quality+premiumRenderRejectedPreview(item)+premiumLevelReview(raw)+technical+premiumRenderOriginalDetails(raw)+'</article>';
 }
 
 function premiumPersistHistory() {

@@ -28,10 +28,10 @@ const c=vm.createContext({console,Date,Number,JSON,Math,Array,String,Object,AF_R
  afPaperSummary_:rows=>({counts:{PENDING:rows.filter(p=>p.state==='PENDING').length,ACTIVE:rows.filter(p=>p.state==='ACTIVE').length}}),
  afPaperRefreshLocked_(){marketCalls++;throw Error('Unexpected replay after manual cancellation');},saveAlert(){throw Error('Legacy analytics/EA publication called');},postAnalyticsEvent(){throw Error('EA analytics called');}
 });
-for(const name of ['SharedSignals.gs','SharedAlerts.gs'])vm.runInContext(fs.readFileSync(__dirname+'/'+name,'utf8'),c,{filename:name});
+for(const name of ['Monitoring.gs','SharedSignals.gs','SharedAlerts.gs'])vm.runInContext(fs.readFileSync(__dirname+'/'+name,'utf8'),c,{filename:name});
 c.afPaperCommit_=(b,p)=>{p.revision++;return c.afSharedObservePaper_(b,p);};
 c.afSharedSchema_(true);const schema=c.afSharedPrepareAlerts_(),m=schema.map;
-const t=Date.parse('2026-10-25T05:00:00Z');
+const t=Date.now();
 function paper(id='one'){return {key:'P:H:'+id,runId:'AF:'+id,symbol:'XAUUSD',side:-1,entry:100,stop:105,target:90,netR:1.9,style:'daytrade',createdAt:t,activationAt:t,expiresAt:t+3600000,holdUntil:null,lastBarClose:t,
  state:'PENDING',reason:'AWAITING_CLOSED_M1',revision:1,fillAt:null,exitAt:null,fillPrice:null,exitPrice:null,pnlPrice:null,costs:{spread:.2,exitAllowance:.02},executionTF:'5m',horizon:{pendingMinutes:60,maxHoldMinutes:240,pendingDeadline:t+3600000},metadata:{evidence:{}},sharedSignal:{model:'google/gemini-3.8-flash',score:90,threshold:65,message:'แผนเดิม'}};}
 let count=0;function test(name,fn){fn();count++;console.log('PASS '+name);}
@@ -47,4 +47,18 @@ test('partial Alert writes are retried without publishing an incomplete summary'
 test('immutable levels and duplicate Alert types stop synchronization',()=>{const g=group(p);alerts.rows[g.Entry.index-1][3]=101;assert.equal(c.afSharedObservePaper_(book,p).code,'AF_SHARED_ALERT_LEVELS_CHANGED');alerts.rows[g.Entry.index-1][3]=100;const copy=g.Entry.row.slice();alerts.rows.push(copy);assert.equal(c.afSharedObservePaper_(book,p).code,'AF_SHARED_ALERT_DUPLICATE_PLAN');alerts.rows.pop();c.afSharedObservePaper_(book,p);});
 test('a user cancellation in TAProAlerts is committed to our pending ledger',()=>{const q=paper('cancel');c.afSharedObservePaper_(book,q);const g=group(q);alerts.rows[g.Entry.index-1][6]='Cancelled';assert.equal(c.afSharedAlertCancellationRequested_(q),true);plans=[q];props.setProperty('AF_SHARED_NEEDS_SCAN','1');props.setProperty('AF_SHARED_ACTIVE_COUNT','1');const r=c.afSharedMonitor();assert.equal(r.success,true);assert.equal(q.state,'CANCELLED');assert.equal(q.reason,'USER_CANCELLED_SHARED_ALERTS');assert.equal(marketCalls,0);assert.deepEqual(Object.values(group(q)).map(x=>x.row[6]),['Cancelled','Cancelled','Cancelled']);});
 test('legacy rows remain byte-for-byte unchanged after all synchronization',()=>{assert.deepEqual(alerts.rows[1],legacy);});
+test('deadline projections update both sheets at the same revision without inventing an outcome',()=>{
+ const q=paper('late'),savedDate=c.Date,ids=()=>Object.values(group(q)).map(x=>x.row[0]);c.afSharedObservePaper_(book,q);const originalIds=ids();
+ class Clock extends Date{constructor(...a){super(...(a.length?a:[q.expiresAt]));}static now(){return q.expiresAt;}}
+ c.Date=Clock;const original=JSON.stringify(q);c.afSharedObservePaper_(book,q);
+ assert.deepEqual(Object.values(group(q)).map(x=>x.row[6]),['Review','Review','Review']);
+ assert.match(group(q).Entry.row[m['Status Reason']],/พ้นเวลารอเข้า/);assert.equal(JSON.stringify(q),original);assert.deepEqual(ids(),originalIds);
+ const heads=signals.rows[0],row=signals.rows.find(r=>r[heads.indexOf('Plan Key')]===q.key);
+ assert.equal(row[heads.indexOf('Plan State')],'PENDING');assert.equal(row[heads.indexOf('Entry Status')],'Unknown');assert.equal(row[heads.indexOf('Outcome')],'REVIEW');
+ assert.equal(row[heads.indexOf('Realized R')],'');assert.equal(row[heads.indexOf('New Order NotifiedAt')],'AF_ENDED_OR_REVIEW_NO_NEW_ORDER');
+ c.Date=savedDate;
+ // Later verified replay can still publish the actual historical result.
+ Object.assign(q,{state:'TP',revision:2,fillAt:t+60000,exitAt:t+120000,pnlPrice:9.98});c.afSharedObservePaper_(book,q);
+ assert.deepEqual(Object.values(group(q)).map(x=>x.row[6]),['Triggered','Cancelled','Triggered']);assert.deepEqual(ids(),originalIds);
+});
 console.log('SharedAlerts: '+count+' groups passed; no model, analytics, or broker calls.');

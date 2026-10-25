@@ -1,6 +1,6 @@
 {
   "scriptId": "1SM3hKmFADM-gYV6IuuZiH6XreZcwhIiAqUaObuiZf5KXGmUMKBHUfzdu",
-  "revision": "2026-10-25-hourly-market-open",
+  "revision": "2026-10-25-monitor-reliability-2",
   "files": [
     {
       "source": "DayTrade.gs",
@@ -11,26 +11,26 @@
     {
       "source": "Workflow.gs",
       "target": "Workflow.js",
-      "baselineSha256": "c56f4c2ff14e0e8b7ab4d2857d4716eb6ca6cef77b02ef13eaec9cdc023d0a3d",
-      "patchedSha256": "264d98251b6d0eb6fbbf63eb3c093975cbdfafddd817303323ee218f47445f51"
+      "baselineSha256": "a655ec7ed891d79654f91bcc8935751440519d116b3056c09f3e7828f3dc4388",
+      "patchedSha256": "a655ec7ed891d79654f91bcc8935751440519d116b3056c09f3e7828f3dc4388"
     },
     {
       "source": "ResearchLog.gs",
       "target": "ResearchLog.js",
-      "baselineSha256": "f40e4c34b6075058bf12c475b46a89a8c8150e8050a6718f1f9b411615bd3280",
-      "patchedSha256": "f40e4c34b6075058bf12c475b46a89a8c8150e8050a6718f1f9b411615bd3280"
+      "baselineSha256": "600d6f01e09542b5a55615860fe3a4f483e1f735a150ad9de6f92856590fc324",
+      "patchedSha256": "600d6f01e09542b5a55615860fe3a4f483e1f735a150ad9de6f92856590fc324"
     },
     {
       "source": "ResearchUi.html",
       "target": "ResearchUi.html",
-      "baselineSha256": "88e45a22fc4c8827f6f72e0ad3cabdfa16878af49f35e232f6be71cd1d480fea",
-      "patchedSha256": "88e45a22fc4c8827f6f72e0ad3cabdfa16878af49f35e232f6be71cd1d480fea"
+      "baselineSha256": "485783470bfc342d3f8dd75308346a5b0d6bc94090c442cf655ecffadf623a64",
+      "patchedSha256": "673706a51db5c25826d720c09837cac671e257064c8a41c281332d0d7d04febe"
     },
     {
       "source": "PremiumUi.html",
       "target": "PremiumUi.html",
-      "baselineSha256": "7abbe9d391e90220cf7f27581bfae46011e4a7966a377c72f94df207441ff510",
-      "patchedSha256": "7abbe9d391e90220cf7f27581bfae46011e4a7966a377c72f94df207441ff510"
+      "baselineSha256": "28ed75c9c06e3fe10a9ddbef2eb0c2d50729fa6db1feddd0e8ae77d2f21fc7ff",
+      "patchedSha256": "28ed75c9c06e3fe10a9ddbef2eb0c2d50729fa6db1feddd0e8ae77d2f21fc7ff"
     },
     {
       "source": "PremiumStyles.html",
@@ -41,8 +41,8 @@
     {
       "source": "Code.gs",
       "target": "Code.js",
-      "baselineSha256": "1f5db2caae769f54de5c45f9e4f64955d2319b0f6057e6775a6663125f1bd171",
-      "patchedSha256": "8840b51f9664411e0860edba0f9c7b77130605ebd8a2b051993d54aebc168d0a"
+      "baselineSha256": "0b36873042914b4fb71d42bd0602d7bc4339485620b9016d2f1c87dbcd2e1d22",
+      "patchedSha256": "8766e97fc3583bcb6d24fb0d63ba5e9790e5dc80d3159596b397b07707cb131b"
     },
     {
       "source": "Planner.gs",
@@ -71,14 +71,14 @@
     {
       "source": "Workspace.gs",
       "target": "Workspace.js",
-      "baselineSha256": "36fe2cad2f2c65edb6f6b3bc396560c3d4fb89cb35fbf3a20f120d398b086152",
-      "patchedSha256": "36fe2cad2f2c65edb6f6b3bc396560c3d4fb89cb35fbf3a20f120d398b086152"
+      "baselineSha256": "1ff98904d2d371768f1cf9d56098fa1dfff5533b747cffcfa80c8aa684ba97da",
+      "patchedSha256": "1ff98904d2d371768f1cf9d56098fa1dfff5533b747cffcfa80c8aa684ba97da"
     },
     {
       "source": "ClientScript.html",
       "target": "ClientScript.html",
-      "baselineSha256": "0ecf3db51aef9aa4613445ecb3fabbfe346beafad1b512ff7a733d44dcc74f2c",
-      "patchedSha256": "0ecf3db51aef9aa4613445ecb3fabbfe346beafad1b512ff7a733d44dcc74f2c"
+      "baselineSha256": "ae40b21185f5e75fda9b8367bb52741f120aabb32d92bcf5c03eb8348cdd55e0",
+      "patchedSha256": "ae40b21185f5e75fda9b8367bb52741f120aabb32d92bcf5c03eb8348cdd55e0"
     },
     {
       "source": "Index-template.html",
@@ -95,20 +95,26 @@
     {
       "source": "SharedSignals.gs",
       "target": "SharedSignals.js",
-      "baselineSha256": "be887babb8c7d0ec2278f4cf6cd369aa2ea2d5c83fa77c930011ac4eec8814da",
-      "patchedSha256": "be887babb8c7d0ec2278f4cf6cd369aa2ea2d5c83fa77c930011ac4eec8814da"
+      "baselineSha256": "8635a9c260555bb21f727a4e9f7c8f779b423014565a4e2ec774452e1baee4bc",
+      "patchedSha256": "8635a9c260555bb21f727a4e9f7c8f779b423014565a4e2ec774452e1baee4bc"
     },
     {
       "source": "SharedAlerts.gs",
       "target": "SharedAlerts.js",
-      "baselineSha256": "1adf356701808d42eddbb8d09ab18c09b0159c9fad8dc2daa268b454e6718490",
-      "patchedSha256": "1adf356701808d42eddbb8d09ab18c09b0159c9fad8dc2daa268b454e6718490"
+      "baselineSha256": "509a4c5baef94cf548a8cc9ca65fb772f1615438b908efd9f3e70ced6fd98a95",
+      "patchedSha256": "509a4c5baef94cf548a8cc9ca65fb772f1615438b908efd9f3e70ced6fd98a95"
     },
     {
       "source": "HourlyAnalysis.gs",
       "target": "HourlyAnalysis.js",
-      "baselineSha256": null,
-      "patchedSha256": "4a016bfaa06178497ae00acbee6897bc60f458476bc7ed6ce7e41b47976568aa"
+      "baselineSha256": "5bcc5c22c5f138bddcd379181d33237f927d674743f905427bd5d9f1b21e299e",
+      "patchedSha256": "5bcc5c22c5f138bddcd379181d33237f927d674743f905427bd5d9f1b21e299e"
+    },
+    {
+      "source": "Monitoring.gs",
+      "target": "Monitoring.js",
+      "baselineSha256": "d93bc7a08d5df37519a463f265d52c475474d29ae597e18664e5b8bf478ce424",
+      "patchedSha256": "d93bc7a08d5df37519a463f265d52c475474d29ae597e18664e5b8bf478ce424"
     }
   ],
   "requiredScopes": [],

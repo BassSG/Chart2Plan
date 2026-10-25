@@ -87,6 +87,17 @@
    (rows?'<details><summary>ดูแผนที่ตรวจทั้งหมด · แสดง '+Math.min(60,x.candidates.length)+' จาก '+x.candidates.length+' แผน</summary><div class="af-research-scroll"><table><thead><tr><th>ฝั่ง / รหัส</th><th>Entry</th><th>SL</th><th>TP</th><th>Net R</th><th>ผลตรวจ</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>':''):'<div class="af-research-empty">ยังไม่มีผลตรวจแผนในรอบนี้</div>';
   document.getElementById('afResearchJson').textContent=JSON.stringify({status:v.status,runId:v.runId,diagnostics:x.diagnostics,preview:x.candidates.slice(0,10).map(function(c){return {id:c.id,side:c.side,eligible:c.eligible,gateCodes:c.gateCodes};})},null,2);
  }
+ function sharedStatus(v){
+  var box=document.getElementById('afSharedStatus');
+  if(!v.enabled){box.textContent='ยังไม่ได้เชื่อมชีตติดตามร่วม';return;}
+  var time=function(t){return t?new Date(t).toLocaleString('th-TH',{timeZone:'Asia/Bangkok',hour12:false}):'ยังไม่มีข้อมูล';};
+  var health={OK:'ตัวติดตามเชื่อมต่อปกติ',STALE:'ตัวติดตามขาดช่วง · ตรวจ Trigger ใน 2-more',DEGRADED:'มีงานซิงก์รอแก้ไข',DATA_UNAVAILABLE:'ยังอ่านแท่งราคาไม่ได้',WAITING_BARS:'ยังไม่มีแท่งใหม่ให้ยืนยันผล'};
+  box.innerHTML='<strong>'+esc(health[v.health]||'รอตรวจสถานะ')+'</strong><br>บันทึก TAProAlerts + TAProSignalLog · รอบตรวจประมาณ 5 นาที'+
+    '<br>เรียกล่าสุด: '+esc(time(v.lastRequestedAt))+' · รอบตรวจจบ: '+esc(time(v.lastCheckedAt))+
+    '<br>อ่านแท่งสำเร็จ: '+esc(time(v.lastReadAt))+' · ยืนยันความคืบหน้าแผน: '+esc(time(v.lastVerifiedAt))+
+    '<br>แท่งปิดล่าสุดที่อ่านได้: '+esc(time(v.lastCandleAt));
+ }
+ window.afResearchSharedStatus=sharedStatus;
  function renderDashboard(v){
   lastResult=v;var c=v.counts||v.summary||v,t=v.today||{};
   var val=function(k){return c[k]==null?'—':c[k];};
@@ -94,6 +105,11 @@
    metric('เข้าแผนจำลอง',val('Entry'))+metric('ถึงเป้า TP',val('TP1'))+metric('ถึงจุดตัดขาดทุน',val('SL'))+
    metric('ปิดครบเวลา',val('TIME_EXIT'))+metric('ต้องตรวจลำดับแท่ง',c.Review==null?c.REVIEW==null?'—':c.REVIEW:c.Review)+
    metric('เข้าแผนวันนี้',t.entries==null?'—':t.entries)+'</div>';
+  if(Array.isArray(v.plans)){
+    if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(v.plans);
+    var rows=v.plans.slice(0,30).map(function(p){return '<tr><td>'+esc(side(p.side))+'</td><td>'+number(p.entry)+'</td><td>'+number(p.stop)+'</td><td>'+number(p.target)+'</td><td>'+esc(p.view?p.view.label:p.state)+'</td></tr>';}).join('');
+    if(rows)document.getElementById('afResearchPaper').innerHTML+='<div class="af-research-scroll"><table><thead><tr><th>ฝั่ง</th><th>Entry เดิม</th><th>SL</th><th>TP</th><th>สถานะปัจจุบัน</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
   document.getElementById('afResearchPaperDetail').textContent=JSON.stringify(v,null,2);
   document.getElementById('afResearchDashboardStatus').textContent=v.message||'โหลดประวัติจากเซิร์ฟเวอร์แล้ว · ผลจำลองจากแท่ง Bid และสมมติฐาน spread';
   if(lastAnalysis)resultStatus(lastAnalysis,summarize(lastAnalysis));else status('โหลดประวัติจากเซิร์ฟเวอร์แล้ว · กดตรวจเงื่อนไขเพื่อดูแผนรอบใหม่');
@@ -130,13 +146,19 @@
   Array.from(document.getElementById('qcLevel').options).forEach(function(o){o.textContent=o.textContent.replace('%',' คะแนน');});
   section.querySelectorAll('button[data-action]').forEach(function(b){b.addEventListener('click',function(){rpc(b.dataset.action);});});
   if(typeof premiumSyncWorkButtons==='function')premiumSyncWorkButtons();
-  function sharedStatus(v){var box=document.getElementById('afSharedStatus');box.textContent=v.enabled?'บันทึก TAProAlerts + TAProSignalLog · '+(v.monitorInstalled?'ติดตามผ่านระบบเดิมทุก 5 นาที':'ยังไม่ได้เปิดตัวติดตาม')+(v.lastError?' · มีงานรอซิงก์':''):'ยังไม่ได้เชื่อมชีตติดตามร่วม';}
+  
   document.getElementById('afSharedConnect').addEventListener('click',function(){
    var button=this;if(typeof premiumAcquireWork==='function'&&!premiumAcquireWork('shared-setup','เชื่อมชีตติดตาม'))return;
    button.disabled=true;document.getElementById('afSharedStatus').textContent='กำลังเชื่อมชีตและเปิดตัวติดตาม · ไม่มีการเรียก AI';
    google.script.run.withSuccessHandler(function(v){button.disabled=false;if(typeof premiumReleaseWork==='function')premiumReleaseWork('shared-setup');sharedStatus(v);if(v.imported!=null)document.getElementById('afSharedStatus').textContent+=' · ซิงก์แผนเดิม '+v.imported+' แผน';}).withFailureHandler(function(){button.disabled=false;if(typeof premiumReleaseWork==='function')premiumReleaseWork('shared-setup');document.getElementById('afSharedStatus').textContent='เชื่อมไม่สำเร็จ กรุณาตรวจสิทธิ์ Google Sheets และระบบต้นทาง';}).afInitializeSharedSignals();
   });
-  google.script.run.withSuccessHandler(sharedStatus).withFailureHandler(function(){document.getElementById('afSharedStatus').textContent='ยังอ่านสถานะชีตร่วมไม่ได้';}).afSharedStatus();
+  function refreshSharedHealth(){
+   if(document.hidden||busy)return;
+   google.script.run.withSuccessHandler(sharedStatus).withFailureHandler(function(){document.getElementById('afSharedStatus').textContent='ยังอ่านสถานะชีตร่วมไม่ได้';}).afSharedStatus();
+  }
+  refreshSharedHealth();
+  // Read-only Script Properties heartbeat. No replay, Sheet reads, or AI calls.
+  setInterval(refreshSharedHealth,60000);
   document.getElementById('afResearchExport').addEventListener('click',function(){
    if(!lastResult){status('ยังไม่มีผลตรวจสำหรับดาวน์โหลด');return;}
    var blob=new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');

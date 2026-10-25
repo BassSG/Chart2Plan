@@ -1,6 +1,6 @@
 # Chart2Plan (Allindy + EBW-Fibo)
 
-> อัปเดต 25 ตุลาคม 2026: รุ่นล่าสุด **39** (`2026-10-25-alerts-and-signal-log`) เชื่อมแผน PAPER ลง TAPRO_2 ครบ TAProAlerts (Entry / SL / TP1) และ TAProSignalLog (แถวสรุป) พร้อมตัวติดตามสถานะอัตโนมัติ โดยใช้กฎวิเคราะห์เดิม ตาม **RELEASE_39_TH.md** ใช้งานผ่าน https://basssg.github.io/Chart2Plan/
+> อัปเดต 25 ตุลาคม 2026: รุ่นล่าสุด **42** (`2026-10-25-monitor-reliability-2`) ตรวจแผนโดยไม่ผูกกับ Push, ลองซ้ำเฉพาะ lock ก่อน AI, แสดงสุขภาพตัวตรวจจากเวลาและแท่งจริง และปิดการนำเสนอจุดเข้าเมื่อพ้นเวลาแต่ยังรอข้อมูล ตาม **RELEASE_42_TH.md** ใช้งานผ่าน https://basssg.github.io/Chart2Plan/
 
 > **AI Trading Decision Support & Evidence-Based Execution Engine**  
 > ผสานตรรกะ **All Indy 1.3.5** และ **EBW-Fibo 1.10.19** เป็นระบบวางแผนการเทรดคำนวณราคาล่วงหน้า (Deterministic Planning) และติดตามผลจำลอง (Audit Ledger) บน Google Apps Script และ Web App / PWA สำหรับโทรศัพท์มือถือ

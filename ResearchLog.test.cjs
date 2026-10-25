@@ -45,7 +45,7 @@ function env(){
       if(c.marketUnavailable)throw Error('market unavailable');
       return {symbol:'XAUUSD',sourceId:'Eightcap-MT5-Live',bars:c.bars||[]};}
   };
-  vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(__dirname,'DayTrade.gs'),'utf8'),c,{filename:'DayTrade.gs'});vm.runInContext(source,c,{filename:'ResearchLog.gs'});
+  vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(__dirname,'Monitoring.gs'),'utf8'),c);vm.runInContext(fs.readFileSync(path.join(__dirname,'DayTrade.gs'),'utf8'),c,{filename:'DayTrade.gs'});vm.runInContext(source,c,{filename:'ResearchLog.gs'});
   return {c,reads,time:v=>{now=v;},get book(){return Object.values(books)[0];},
     get acquires(){return acquires;},get fetches(){return fetches;},fail:v=>{fail=v;},
     lock:fn=>c.afResearchLock_(fn),record:(r=response(),q=request())=>c.afResearchLock_(()=>c.afAuditRecord_(r,q))};
@@ -394,4 +394,3 @@ test('automatic plan dashboard skips audit bodies and keeps identical plan state
  const full=e.c.afResearchDashboard('owner');assert.equal(full.audits.length,1);assert.deepEqual(plain(light.plans),plain(full.plans));assert.deepEqual(plain(light.counts),plain(full.counts));
 });
 console.log('\n'+passed+' offline ResearchLog tests passed. No live provider or broker assertions.');
-

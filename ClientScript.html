@@ -1245,6 +1245,7 @@ async function copyResult (){
           releaseAlerts();
           tableBody.innerHTML = '';
           if (response.success) {
+            if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(response.plans||[]);
             const triggers = response.triggers.filter(trigger => ['Active', 'Review'].includes(trigger.status));
             document.getElementById('premiumAlertCount').textContent = triggers.length + ' รายการ';
             if (triggers.length === 0) {
@@ -1267,7 +1268,7 @@ async function copyResult (){
               row.insertCell().textContent = trigger.type;
               row.insertCell().textContent = trigger.alertType || 'N/A';
               row.insertCell().textContent = trigger.targetPrice || 'N/A';
-              row.insertCell().textContent = trigger.status === 'Review' ? 'Review — ต้องตรวจสอบลำดับราคา' : trigger.status;
+              row.insertCell().textContent = trigger.statusLabel || (trigger.status === 'Review' ? 'Review — ต้องตรวจสอบลำดับราคา' : trigger.status);
 
               const actionCell = row.insertCell();
               actionCell.style.textAlign = "right";
@@ -1777,5 +1778,3 @@ function navigateToAI(){spaceNavigate('analysisSettings');}
 
 function showDeleteUserPanel(){const user=window.AF_SOLO_WORKSPACE.username;Swal.fire({title:'ล้างข้อมูลทดสอบ',text:'ล้างประวัติและแผนจำลองของผู้ทดสอบใน Sheet ใหม่อย่างถาวร',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันล้างข้อมูลทดสอบ',cancelButtonText:'ยกเลิก'}).then(r=>{if(!r.isConfirmed)return;google.script.run.withSuccessHandler(v=>{Swal.fire(v.success?'สำเร็จ':'ดำเนินการไม่ได้',v.message,v.success?'success':'error');if(v.success){analysisHistory=[];premiumPersistHistory();premiumResetResult();loadTriggers();}}).withFailureHandler(e=>Swal.fire('ผิดพลาด',e.message,'error')).afDeleteOwnData(user,'DELETE_MY_TEST_DATA');});}
 </script>
-
-

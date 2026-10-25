@@ -38,4 +38,6 @@ window.afResearchShowResponse({status:'PAPER_SIGNAL_READY',success:true,plan:{si
  audit:{candidates:[]},message:'📈 XAU/USD | Allindy + Fibo\nแผนจำลองผ่านเงื่อนไข\nข้อความ <img src=x onerror=alert(1)>'});
 assert.match(elements.afResearchPlan.innerHTML,/&lt;img/);
 assert.doesNotMatch(elements.afResearchPlan.innerHTML,/<img/);
-console.log('Research UI: structured result, prioritized candidate, diagnostics, and HTML escaping passed.');
+window.afResearchSharedStatus({enabled:true,health:'STALE',lastRequestedAt:1,lastCheckedAt:2,lastReadAt:null,lastVerifiedAt:null,lastCandleAt:null});
+assert.match(elements.afSharedStatus.innerHTML,/ตัวติดตามขาดช่วง/);assert.match(elements.afSharedStatus.innerHTML,/เรียกล่าสุด/);assert.match(elements.afSharedStatus.innerHTML,/อ่านแท่งสำเร็จ/);assert.match(elements.afSharedStatus.innerHTML,/แท่งปิดล่าสุด/);assert.doesNotMatch(elements.afSharedStatus.innerHTML,/เชื่อมต่อปกติ/);
+console.log('Research UI: structured result, prioritized candidate, diagnostics, health times, and HTML escaping passed.');

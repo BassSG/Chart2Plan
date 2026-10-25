@@ -9,7 +9,7 @@ function taproObserveAllindySharedSafe_(lockAlreadyHeld){
   if(lock&&!lock.tryLock(1))return {skipped:'LOCK_BUSY'};
   try{
     var props=PropertiesService.getScriptProperties();
-    if(!props.getProperty(taproNativeProperty_('STARTED')))return {skipped:'PUSH_NOT_CONFIGURED'};
+    var pushReady=!!props.getProperty(taproNativeProperty_('STARTED'));
     var sheet=getSignalLogSheet();
     if(sheet.getParent().getId()!=='1jG-yyEs6PrRH1TK8VjQ4setEscwXC0cwAUCVghh3DZk'||sheet.getSheetId()!==42397460)throw Error('SHARED_TARGET_MISMATCH');
     var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0],source=headers.indexOf('Plan Source'),key=headers.indexOf('Plan Key'),mode=headers.indexOf('Monitoring Mode'),imported=headers.indexOf('Shared Imported');
@@ -20,6 +20,9 @@ function taproObserveAllindySharedSafe_(lockAlreadyHeld){
         {method:'post',contentType:'application/json',payload:JSON.stringify({action:'shared_monitor'}),followRedirects:true,muteHttpExceptions:true,validateHttpsCertificates:true});
       if(response.getResponseCode()===200)monitor=JSON.parse(response.getContentText());
     }catch(_){Logger.log('ALLINDY_SHARED_MONITOR_WAIT');}
+    // Monitoring is independent of device registration and Push configuration.
+    props.setProperty('TAPRO_ALLINDY_SHARED_LAST_CHECKED',String(Date.now()));
+    if(!pushReady)return {observed:0,seeded:0,push:'NOT_CONFIGURED',monitor:monitor,brokerCommands:0};
     var matches=sheet.getRange(2,source+1,sheet.getLastRow()-1,1).createTextFinder('ALLINDY_FIBO').matchEntireCell(true).findAll(),observed=0,seeded=0;
     matches.forEach(function(hit){
       var values=sheet.getRange(hit.getRow(),1,1,headers.length).getValues()[0];

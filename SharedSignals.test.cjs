@@ -27,12 +27,13 @@ const ctx=vm.createContext({console,Date,Number,JSON,Math,Array,String,Object,
  afSoloIdentity_:()=>({username:'owner-test'}),afRequireUser_(){},afResearchLock_:fn=>fn(),afResearchBookLocked_:()=>({}),afPaperLatest_:()=>plans,
  afSharedPrepareAlerts_(){},afSharedSyncAlerts_:()=>({rows:[1,2,3],url:'https://docs.google.com/spreadsheets/d/1jG-yyEs6PrRH1TK8VjQ4setEscwXC0cwAUCVghh3DZk/edit#gid=0'}),afSharedAlertsUrl_:()=> 'https://docs.google.com/spreadsheets/d/1jG-yyEs6PrRH1TK8VjQ4setEscwXC0cwAUCVghh3DZk/edit#gid=0',afSharedAlertCancellationRequested_:()=>false,
  AF_RESEARCH_VERSION:'AF-RESEARCH-3',afJson_:x=>x,afPaperSummary_:p=>({counts:{PENDING:p.filter(x=>x.state==='PENDING').length,ACTIVE:p.filter(x=>x.state==='ACTIVE').length}}),
- afPaperRefreshLocked_:(user,opts)=>{refreshOptions=opts;return {counts:{PENDING:0,ACTIVE:0},changed:1,feed:'VERIFIED_CLOSED_M1'};},
+ afPaperRefreshLocked_:(user,opts)=>{refreshOptions=opts;return {counts:{PENDING:0,ACTIVE:0},changed:1,feed:'VERIFIED_CLOSED_M1',replayedBars:1,latestClosedAt:Date.now()-60000};},
  afCallAnalyst_(){aiCalls++;throw Error('Unexpected paid AI call');}
 });
+vm.runInContext(fs.readFileSync(path.join(__dirname,'Monitoring.gs'),'utf8'),ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname,'SharedSignals.gs'),'utf8'),ctx);
 let groups=0;function group(name,fn){fn();groups++;console.log('PASS '+name);}
-const start=Date.parse('2026-10-25T05:00:00Z');
+const start=Date.now();
 function paper(id='one'){return {key:'P:H:'+id,runId:'AF:'+id,side:1,entry:100,stop:95,target:110,netR:1.996,symbol:'XAUUSD',style:'daytrade',createdAt:start,activationAt:start,expiresAt:start+3600000,holdUntil:null,
  revision:1,state:'PENDING',reason:'AWAITING_CLOSED_M1',lastBarClose:start,fillAt:null,fillPrice:null,exitAt:null,exitPrice:null,pnlPrice:null,
  horizon:{pendingMinutes:60,maxHoldMinutes:240,pendingDeadline:start+3600000},executionTF:'5m',costs:{spread:.2,exitAllowance:.02,realBroker:false},metadata:{evidence:{zoneId:'SD:1',fiboId:'FB:1'}},
@@ -64,5 +65,17 @@ group('the existing Push bridge seeds imports and never enters an order path',()
  vm.runInContext(fs.readFileSync(path.join(__dirname,'integrations','TAProSharedObserver.js'),'utf8'),context);
  const first=context.taproObserveAllindySharedSafe_(false);assert.equal(first.seeded,1);assert.ok(seen.every(r=>r['Plan Source']==='ALLINDY_FIBO'));assert.ok(!seen.some(r=>r['Shared Imported']==='YES'));
  seen.length=0;const next=context.taproObserveAllindySharedSafe_(false);assert.equal(next.seeded,0);assert.ok(seen.some(r=>r['Shared Imported']==='YES'));assert.equal(next.brokerCommands,0);
+ pushProps.delete('native:STARTED');seen.length=0;let polls=0;const fetch=context.UrlFetchApp.fetch;context.UrlFetchApp.fetch=(...args)=>{polls++;return fetch(...args);};
+ const noPush=context.taproObserveAllindySharedSafe_(false);assert.equal(polls,1);assert.equal(noPush.push,'NOT_CONFIGURED');assert.equal(seen.length,0);assert.equal(noPush.brokerCommands,0);
+});
+group('failed reads cannot advance the last verified candle or its timestamp',()=>{
+ const refresh=ctx.afPaperRefreshLocked_,old=properties.getProperty('AF_SHARED_LAST_VERIFIED_AT');
+ plans=[paper('data-failure')];properties.deleteProperty('AF_SHARED_MONITOR_LAST_STARTED');properties.setProperty('AF_SHARED_ACTIVE_COUNT','1');
+ ctx.afPaperRefreshLocked_=()=>({counts:{PENDING:1,ACTIVE:0},changed:0,feed:'UNAVAILABLE_NO_OUTCOMES_INFERRED',replayedBars:0,latestClosedAt:null});
+ ctx.afSharedMonitor();assert.equal(properties.getProperty('AF_SHARED_LAST_VERIFIED_AT'),old);
+ properties.setProperty('AF_SHARED_MONITOR_REQUESTED_AT',String(Date.now()));assert.equal(ctx.afSharedStatus().health,'DATA_UNAVAILABLE');
+ properties.deleteProperty('AF_SHARED_MONITOR_LAST_STARTED');ctx.afPaperRefreshLocked_=()=>({counts:{PENDING:1,ACTIVE:0},feed:'VERIFIED_CLOSED_M1',replayedBars:0,latestClosedAt:start-86400000});
+ ctx.afSharedMonitor();assert.equal(properties.getProperty('AF_SHARED_LAST_VERIFIED_AT'),old);assert.equal(ctx.afSharedStatus().health,'WAITING_BARS');
+ assert.equal(ctx.afSharedStatus().lastCandleAt,start-86400000);ctx.afPaperRefreshLocked_=refresh;
 });
 console.log('SharedSignals: '+groups+' groups passed; AI calls '+aiCalls+'; no external writes.');

@@ -19,7 +19,7 @@ function manageTriggers(action,user){
  afRequireUser_(user);if(action==='deleteAll')return afCancelPaperMany_(user,null);
  if(action!=='getAll')return {success:false,message:'ไม่รองรับคำสั่งนี้'};
  var dashboard=afResearchDashboard(user,false);
- return {success:true,triggers:dashboard.plans.filter(function(p){return ['PENDING','ACTIVE','REVIEW'].includes(p.state);}).map(function(p){return {alertId:p.planKey,symbol:p.symbol,type:p.side===1?'Buy Limit':'Sell Limit',alertType:'Paper '+p.state,targetPrice:p.entry,status:p.state==='REVIEW'?'Review':'Active',paperState:p.state};}),mode:'TEST',realBroker:false};
+ return {success:true,plans:dashboard.plans.slice(0,100),triggers:dashboard.plans.filter(function(p){return ['PENDING','ACTIVE','REVIEW'].includes(p.state);}).map(function(p){return {alertId:p.planKey,symbol:p.symbol,type:p.side===1?'Buy Limit':'Sell Limit',alertType:'Paper '+p.state,targetPrice:p.entry,status:p.state==='REVIEW'||p.view.awaitingData?'Review':'Active',statusLabel:p.view.label,entryAllowed:p.view.entryAllowed,paperState:p.state};}),mode:'TEST',realBroker:false};
 }
 function afCancelPaperMany_(user,ids){
  afRequireUser_(user);return afResearchLock_(function(){var book=afResearchBookLocked_(),plans=afPaperLatest_(book,afResearchHash_(user)),cancelled=0,kept=0;

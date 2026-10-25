@@ -32,8 +32,9 @@ function afSharedFindAlerts_(schema,p){
   });return found;
 }
 function afSharedAlertLifecycle_(p){
-  return {version:'AF-SHARED-PAPER-1',source:AF_SHARED_CONFIG.source,mode:'PAPER',realBroker:false,synced:true,
-    phase:p.state==='PENDING'?'WAITING':p.state==='ACTIVE'?'OPEN':p.state==='REVIEW'?'REVIEW':'CLOSED',paperState:p.state,
+  var view=afPaperView_(p);
+  return {version:'AF-SHARED-PAPER-1',view:view,source:AF_SHARED_CONFIG.source,mode:'PAPER',realBroker:false,synced:true,
+    phase:view.awaitingData?'REVIEW':p.state==='PENDING'?'WAITING':p.state==='ACTIVE'?'OPEN':p.state==='REVIEW'?'REVIEW':'CLOSED',paperState:p.state,
     publishedTs:p.createdAt/1000,expiresTs:p.expiresAt/1000,holdUntil:Number.isFinite(p.holdUntil)?p.holdUntil/1000:null,
     cursorTs:p.lastBarClose/1000,entryKnown:Number.isFinite(p.fillAt),entryTs:Number.isFinite(p.fillAt)?p.fillAt/1000:null,
     exitTs:Number.isFinite(p.exitAt)?p.exitAt/1000:null,exitType:p.state==='TP'?'TP1':['SL','TIME_EXIT','EXPIRED','CANCELLED'].includes(p.state)?p.state:null,
@@ -42,6 +43,7 @@ function afSharedAlertLifecycle_(p){
 }
 function afSharedAlertStatus_(p,type){
   if(type==='Entry'&&Number.isFinite(p.fillAt))return 'Triggered';
+  if(afPaperView_(p).awaitingData)return 'Review';
   if(p.state==='PENDING')return type==='Entry'?'Active':'Pending';
   if(p.state==='ACTIVE')return ['SL','TP1'].includes(type)?'Active':'Triggered';
   if(p.state==='REVIEW')return 'Review';
@@ -60,7 +62,8 @@ function afSharedAlertRow_(schema,p,meta,type,old){
   row[7]=p.runId;row[8]=type;row[9]='Allindy + Fibo · '+String(meta.model||'unknown');row[10]=new Date(p.createdAt);row[11]=meta.model||'unknown';
   row[m.ActivatedAt]=type!=='Entry'&&Number.isFinite(p.fillAt)?new Date(p.fillAt):'';
   var event=type==='Entry'?p.fillAt:type==='TP1'&&p.state==='TP'||type==='SL'&&p.state==='SL'?p.exitAt:null;
-  row[m.EventAt]=Number.isFinite(event)?new Date(event):'';row[m['Status Reason']]=p.reason;
+  row[m.EventAt]=Number.isFinite(event)?new Date(event):'';
+  var view=afPaperView_(p);row[m['Status Reason']]=view.awaitingData?view.label:p.reason;
   row[m['Lifecycle JSON']]=JSON.stringify(afSharedAlertLifecycle_(p));row[m['Plan Source']]=AF_SHARED_CONFIG.source;
   row[m['Plan Key']]=p.key;row[m['Monitoring Mode']]='PAPER';row[m['Source Revision']]=p.revision;
   row[m['Pending ExpiresAt']]=new Date(p.expiresAt);row[m['Hold Until']]=Number.isFinite(p.holdUntil)?new Date(p.holdUntil):'';
@@ -73,7 +76,7 @@ function afSharedSyncAlerts_(book,p){
   ['Entry','SL','TP1'].forEach(function(type){
     var prior=found[type],row=afSharedAlertRow_(schema,p,meta,type,prior&&prior.row);
     if(prior&&Number(prior.row[m['Source Revision']])>p.revision)throw Error('AF_SHARED_ALERT_REVISION_CONFLICT');
-    if(prior&&Number(prior.row[m['Source Revision']])===p.revision&&prior.row[6]===row[6]&&prior.row[m['Status Reason']]===p.reason)return;
+    if(prior&&Number(prior.row[m['Source Revision']])===p.revision&&prior.row[6]===row[6]&&prior.row[m['Status Reason']]===row[m['Status Reason']])return;
     if(prior)sheet.getRange(prior.index,1,1,row.length).setValues([row]);else sheet.appendRow(row);changed.push(type);
   });
   if(changed.length)found=afSharedFindAlerts_(schema,p);

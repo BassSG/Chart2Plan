@@ -97,7 +97,7 @@ function afWorkflowNewsEvidence_(news){
  out.event=event(news&&news.event);out.nextNews=event(news&&news.nextNews);return out;
 }
 function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc,requireOpenMarket){
- var runId='AF:'+new Date().toISOString()+':'+Utilities.getUuid(),audit=afPlannerAudit_(runId),lock=null,held=false,req={},knownCost=null,knownUsage={};
+ var runId='AF:'+new Date().toISOString()+':'+Utilities.getUuid(),audit=afPlannerAudit_(runId),lock=null,held=false,req={},knownCost=null,knownUsage={},aiAttempted=false;
  function finish(status,stage,code,extra,store){
   audit.stage=stage;audit.reasonCode=code;audit.gateCodes=code==='AF_PAPER_SIGNAL_READY'?[]:[code];
   // Capture interrupted post-checks before catch/early-return serializes the audit.
@@ -111,7 +111,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc,requireOp
   if(stage==='PLANNER'&&audit.snapshot.evidenceCounts)audit.gateCodes=audit.gateCodes.concat(
    audit.snapshot.evidenceCounts.gateCodes.filter(function(g){return audit.gateCodes.indexOf(g)<0;}));
   var response=Object.assign({success:false,status:status,message:code,runId:runId,mode:'TEST',liveTrading:false,plan:null,
-   strategy:'ALLINDY_FIBO',cost:knownCost,usage:knownUsage,qcResult:{percentage:null,threshold:null}},extra||{});
+   strategy:'ALLINDY_FIBO',aiAttempted:aiAttempted,cost:knownCost,usage:knownUsage,qcResult:{percentage:null,threshold:null}},extra||{});
   response.audit=afPlannerClean_(afWorkflowAuditReady_(audit));
   if(store&&held)response=afWorkflowStoreLocked_(response,req);
   return afPlannerClean_(response);
@@ -145,7 +145,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc,requireOp
   audit.candidates=allCandidates;
   if(!eligibleCandidates.length)return finish('NO_TRADE','PLANNER',afPlannerNoCandidateReason_(audit.snapshot,allCandidates),
    {message:'NO_TRADE — ไม่มี candidate ผ่าน hard gates; ไม่เรียก AI',qcResult:{percentage:null,threshold:quality.threshold}},true);
-  audit.stage='MODEL';var ai=afCallAnalyst_(req.model,afAnalystPrompt_(context,quality,allCandidates));
+  audit.stage='MODEL';aiAttempted=true;var ai=afCallAnalyst_(req.model,afAnalystPrompt_(context,quality,allCandidates));
   // Persist only known, whitelisted billing values before any post-response guard.
   knownCost=ai&&afPlannerNum_(ai.cost)&&ai.cost>=0?ai.cost:null;knownUsage=afWorkflowUsage_(ai&&ai.usage);
   var d=ai&&ai.decision;
