@@ -1,0 +1,90 @@
+{
+  "scriptId": "1SM3hKmFADM-gYV6IuuZiH6XreZcwhIiAqUaObuiZf5KXGmUMKBHUfzdu",
+  "revision": "2026-10-25-reading-workspace-2",
+  "files": [
+    {
+      "source": "DayTrade.gs",
+      "target": "DayTrade.js",
+      "baselineSha256": "0147558a3b7d7c66783aa36bd81ab0449e95bac90a730f6893ca8a138862e8fc",
+      "patchedSha256": "0147558a3b7d7c66783aa36bd81ab0449e95bac90a730f6893ca8a138862e8fc"
+    },
+    {
+      "source": "Workflow.gs",
+      "target": "Workflow.js",
+      "baselineSha256": "f2faecc8b044a79044951905a8c7d060e1b323699acdeb930225aef9530a6301",
+      "patchedSha256": "f2faecc8b044a79044951905a8c7d060e1b323699acdeb930225aef9530a6301"
+    },
+    {
+      "source": "ResearchLog.gs",
+      "target": "ResearchLog.js",
+      "baselineSha256": "e037b24c802d979d17c3b1b74837d2d995c8919dd4b2f153f3348ff9779c2bb1",
+      "patchedSha256": "e037b24c802d979d17c3b1b74837d2d995c8919dd4b2f153f3348ff9779c2bb1"
+    },
+    {
+      "source": "ResearchUi.html",
+      "target": "ResearchUi.html",
+      "baselineSha256": "8aa229b4eba78a0dfcc084caf9cbd014ebb0016bae10826e4f41c5a7fe259db3",
+      "patchedSha256": "8aa229b4eba78a0dfcc084caf9cbd014ebb0016bae10826e4f41c5a7fe259db3"
+    },
+    {
+      "source": "PremiumUi.html",
+      "target": "PremiumUi.html",
+      "baselineSha256": "f47bbfd55143b6d1a78bbda6e6435b2c1d28e17019b00faf91243d1ef7d9a58c",
+      "patchedSha256": "d7029dfc9a549fc3a0ec1bb0efaa4d396329780bee76327e16f48fba60c80fa6"
+    },
+    {
+      "source": "PremiumStyles.html",
+      "target": "PremiumStyles.html",
+      "baselineSha256": "65c5597e9ebecfb3c6fc1139d4542c9299bedfa72163a1b0b5be9bdbef6dc428",
+      "patchedSha256": "65c5597e9ebecfb3c6fc1139d4542c9299bedfa72163a1b0b5be9bdbef6dc428"
+    },
+    {
+      "source": "Code.gs",
+      "target": "Code.js",
+      "baselineSha256": "8029e6d29a5f26a0b1f08e0ac6656f4ef95ba7615c403f90350d6104b4df6a5c",
+      "patchedSha256": "ed8a071fd7bb203b5e002b44f7c309b33dcc1ab2969c1092299133687bda30c2"
+    },
+    {
+      "source": "Planner.gs",
+      "target": "Planner.js",
+      "baselineSha256": "6e51986ed10219dfc69a4f73ef5e72bd24b07be29751d360c9b5892082030765",
+      "patchedSha256": "6e51986ed10219dfc69a4f73ef5e72bd24b07be29751d360c9b5892082030765"
+    },
+    {
+      "source": "AfUnifiedPlannerEngine.gs",
+      "target": "AfUnifiedPlannerEngine.js",
+      "baselineSha256": "3185dc8f470666af4410a6dc029e8247035b0fab182d8ee5091f43159fcb233d",
+      "patchedSha256": "3185dc8f470666af4410a6dc029e8247035b0fab182d8ee5091f43159fcb233d"
+    },
+    {
+      "source": "Allindy.gs",
+      "target": "Allindy.js",
+      "baselineSha256": "c838d24c2a6f60c3bdc3aef3cc14b7d2b865f19692e2028116fbd23ae65c6aa9",
+      "patchedSha256": "c838d24c2a6f60c3bdc3aef3cc14b7d2b865f19692e2028116fbd23ae65c6aa9"
+    },
+    {
+      "source": "Fibo.gs",
+      "target": "Fibo.js",
+      "baselineSha256": "e3e2cca0cd5155883ec376dc5870e15809c1631f441692754704d53ff370c887",
+      "patchedSha256": "e3e2cca0cd5155883ec376dc5870e15809c1631f441692754704d53ff370c887"
+    },
+    {
+      "source": "Workspace.gs",
+      "target": "Workspace.js",
+      "baselineSha256": "c103f7d82654a3ed2897e6d32fc5e33d27c884fe699a901d82ffc8b03f74cbb5",
+      "patchedSha256": "c103f7d82654a3ed2897e6d32fc5e33d27c884fe699a901d82ffc8b03f74cbb5"
+    },
+    {
+      "source": "ClientScript.html",
+      "target": "ClientScript.html",
+      "baselineSha256": "9c53c0dd783227a13fe9aba108cadb5a7601bd6fa309ffff50e6bf3154e8f989",
+      "patchedSha256": "9c53c0dd783227a13fe9aba108cadb5a7601bd6fa309ffff50e6bf3154e8f989"
+    },
+    {
+      "source": "Index-template.html",
+      "target": "Index.html",
+      "baselineSha256": "be9fe9b72d2f515e84d555db970aa632d9e7fabce9e81075a2a94eb44aedbfdd",
+      "patchedSha256": "be9fe9b72d2f515e84d555db970aa632d9e7fabce9e81075a2a94eb44aedbfdd"
+    }
+  ]
+}

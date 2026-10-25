@@ -9,15 +9,17 @@
  * Not tick/Ask history. Explicit paper activation = next complete M1 open.
  * The creation partial minute is deliberately not active, never backfilled.
  * Subsequent closed M1 must be contiguous, weekends included: no session guesses.
- * Pending TTL = 12 execution-TF durations, elapsed only through observed M1 coverage.
- * ACTIVE never expires. Entry+exit or TP+SL in same candle => unresolved REVIEW.
+ * Daytrade: pending 60m from acceptance, hold 240m from modeled fill; frozen per plan.
+ * Other/legacy plans retain 12 execution-TF pending durations. Closed M1 required.
+ * Legacy ACTIVE has no timeout. Daytrade TIME_EXIT uses the final observed M1 close.
+ * Entry+exit or TP+SL in the same candle => unresolved REVIEW.
  * Optional audit.newsCoverage=[{from,to,knownAt,status:'CLEAR'|'BLOCKED'}] in UTC ms.
  * Only pre-known archived coverage enclosing a full M1 is used; unknown entry news =>
  * REVIEW. Live news now is never substituted for historical entry news. Source-book
  * state is never rewritten by execution target-before-entry cancellation.
  */
-var AF_RESEARCH_VERSION='AF-RESEARCH-2';
-var AF_PAPER_STATES=['PENDING','ACTIVE','TP','SL','EXPIRED','CANCELLED','REVIEW'];
+var AF_RESEARCH_VERSION='AF-RESEARCH-3';
+var AF_PAPER_STATES=['PENDING','ACTIVE','TP','SL','EXPIRED','CANCELLED','REVIEW','TIME_EXIT'];
 var AF_RESEARCH_HEADERS={
   Audit:['seq','recordedAt','owner','runId','status','evidenceRef','evidenceHash','planKey'],
   Snapshots:['seq','ref','chunk','total','sha256','json'],
@@ -68,7 +70,11 @@ function afResearchBlob_(book,value){
   s.getRange(s.getLastRow()+1,1,rows.length,6).setValues(rows);return {ref:ref,hash:hash};
 }
 function afResearchReadBlob_(book,ref,expectedHash){
-  var chunks=afResearchRows_(book,'Snapshots').filter(function(r){return r[1]===ref;});
+  // Read the small reference column first. Never reload every audit payload to find one blob.
+  var sheet=book.getSheetByName('Snapshots'),last=sheet.getLastRow(),positions=[],chunks=[];
+  if(last>1)sheet.getRange(2,2,last-1,1).getValues().forEach(function(r,i){if(r[0]===ref)positions.push(i+2);});
+  for(var p=0;p<positions.length;){var start=positions[p],end=start;p++;while(p<positions.length&&positions[p]===end+1){end=positions[p];p++;}
+    chunks=chunks.concat(sheet.getRange(start,1,end-start+1,6).getValues());}
   chunks.sort(function(a,b){return a[2]-b[2];});
   if(!chunks.length||chunks.length!==chunks[0][3])throw Error('AF_RESEARCH_CHUNKS_MISSING');
   var text='',hash=chunks[0][4],prev=0;
@@ -139,9 +145,11 @@ function afAuditRecord_(response,request){
   else if(!Number.isFinite(spread)||spread<0){state='REVIEW';reason='MISSING_FROZEN_SPREAD';}
   else if(!evidence.evidenceComplete){state='REVIEW';reason='MISSING_AUDIT_EVIDENCE';}
   // This is a scheduled paper plan, not an order claimed active during an unseen partial minute.
+  var horizon=request.tradeType==='daytrade'?afDayTradeHorizon_(now):null;
   var paper={schemaVersion:1,ledgerVersion:AF_RESEARCH_VERSION,key:key,owner:owner,symbol:symbol,runId:evidence.runId,auditRef:blob.ref,
     createdAt:now,activationAt:activationAt,activationModel:'NEXT_COMPLETE_M1_OPEN',originalCreatedAt:p.createdAt||null,side:p.side,entry:p.entry,stop:p.stop,target:p.target,netR:Number.isFinite(p.netR)?p.netR:null,
-    executionTF:tf||null,tfMs:tfMs||null,expiresAt:Number.isFinite(tfMs)?activationAt+12*tfMs:null,
+    style:request.tradeType||null,horizon:horizon,holdUntil:null,
+    executionTF:tf||null,tfMs:tfMs||null,expiresAt:horizon?horizon.pendingDeadline:Number.isFinite(tfMs)?activationAt+12*tfMs:null,
     costs:{model:'FROZEN_SPREAD_PLUS_EXIT_ALLOWANCE_V1',spread:Number.isFinite(spread)?spread:null,exitAllowance:0.02,units:'price',realBroker:false},
     metadata:afResearchClean_({evidence:e,invalidation:p.invalidation||null,ruleVersion:p.ruleVersion||null,versions:evidence.versions}),
     newsCoverage:afResearchClean_(archivedNews),
@@ -163,30 +171,37 @@ function afPaperStep_(original,b){
   var spread=p.costs.spread,s=p.side,open=b.open+(s===-1?spread:0),low=b.low+(s===-1?spread:0),high=b.high+(s===-1?spread:0);
   var sl=s===1?low<=p.stop:high>=p.stop,tp=s===1?high>=p.target:low<=p.target;
   if(p.state==='PENDING'){
-    if(b.openTime>=p.expiresAt){p.state='EXPIRED';p.reason='PENDING_TTL_12_EXECUTION_BARS';return p;}
+    if(b.openTime>=p.expiresAt){p.state='EXPIRED';p.reason=p.horizon?'PENDING_TTL_60_MINUTES':'PENDING_TTL_12_EXECUTION_BARS';return p;}
     var entry=s===1?b.low+spread<=p.entry:b.high>=p.entry;
+    if(p.horizon&&entry&&b.closeTime>p.expiresAt)return afPaperReview_(p,'ENTRY_EXPIRY_SAME_M1_ORDER_UNKNOWN');
     var news=afPaperHistoricalNews_(p,b);
     if(news==='BLOCKED'){p.state='CANCELLED';p.reason='ARCHIVED_NEWS_BLOCKED';return p;}
     if(!entry){
       if(tp){p.state='CANCELLED';p.reason='EXECUTION_TARGET_BEFORE_ENTRY';}
-      else if(b.closeTime>=p.expiresAt){p.state='EXPIRED';p.reason='PENDING_TTL_12_EXECUTION_BARS';}return p;
+      else if(b.closeTime>=p.expiresAt){p.state='EXPIRED';p.reason=p.horizon?'PENDING_TTL_60_MINUTES':'PENDING_TTL_12_EXECUTION_BARS';}return p;
     }
     if(sl||tp)return afPaperReview_(p,'ENTRY_EXIT_SAME_M1_ORDER_UNKNOWN');
     if(news!=='CLEAR')return afPaperReview_(p,'ENTRY_NEWS_HISTORY_UNKNOWN');
-    p.state='ACTIVE';p.reason='MODELED_LIMIT_FILL';p.fillAt=b.closeTime;p.fillBarOpen=b.openTime;p.fillPrice=p.entry;return p;
+    p.state='ACTIVE';p.reason='MODELED_LIMIT_FILL';p.fillAt=b.closeTime;p.fillBarOpen=b.openTime;p.fillPrice=p.entry;
+    if(p.horizon)p.holdUntil=p.fillAt+p.horizon.maxHoldMinutes*60000;return p;
   }
+  if(p.horizon&&(!Number.isFinite(p.fillAt)||!Number.isFinite(p.holdUntil)||p.holdUntil!==p.fillAt+p.horizon.maxHoldMinutes*60000))return afPaperReview_(p,'HOLD_DEADLINE_INVALID');
+  if(p.horizon&&b.openTime>=p.holdUntil)return afPaperReview_(p,'HOLD_DEADLINE_MISSED');
   var gap=s===1?open<=p.stop:open>=p.stop;
   if(sl&&tp)return afPaperReview_(p,'SL_TP_SAME_M1_ORDER_UNKNOWN');
   if(gap||sl||tp){
     p.state=gap||sl?'SL':'TP';p.exitPrice=gap?open:(sl?p.stop:p.target);p.exitAt=b.closeTime;p.exitBarOpen=b.openTime;
     p.reason=gap?'ADVERSE_STOP_GAP':(sl?'MODELED_STOP':'MODELED_LIMIT_TARGET');
     p.pnlPrice=s*(p.exitPrice-p.fillPrice)-p.costs.exitAllowance;
+  }else if(p.horizon&&b.closeTime>=p.holdUntil){
+    p.state='TIME_EXIT';p.reason='MAX_HOLD_240_MINUTES';p.exitPrice=b.close+(s===-1?spread:0);
+    p.exitAt=b.closeTime;p.exitBarOpen=b.openTime;p.pnlPrice=s*(p.exitPrice-p.fillPrice)-p.costs.exitAllowance;
   }return p;
 }
 function afPaperSummary_(plans){
   var counts={};AF_PAPER_STATES.forEach(function(s){counts[s]=0;});
   plans.forEach(function(p){if(counts[p.state]!==undefined)counts[p.state]++;});
-  var resolved=plans.filter(function(p){return ['TP','SL'].includes(p.state)&&Number.isFinite(p.pnlPrice);});
+  var resolved=plans.filter(function(p){return ['TP','SL','TIME_EXIT'].includes(p.state)&&Number.isFinite(p.pnlPrice);});
   counts.Entry=plans.filter(function(p){return p.fillAt!==null;}).length;
   counts.TP1=counts.TP;counts.Review=counts.REVIEW;counts.Pending=counts.PENDING;counts.Active=counts.ACTIVE;counts.Expired=counts.EXPIRED;
   return {mode:'TEST',researchOnly:true,realBroker:false,verifiedBrokerFills:false,total:plans.length,counts:counts,
@@ -242,18 +257,25 @@ function afPaperCancel_(user,key){
 }
 function afPaperPublic_(p){
   return {id:p.key,planKey:p.key,runId:p.runId,auditRef:p.auditRef,symbol:p.symbol,side:p.side,entry:p.entry,stop:p.stop,target:p.target,netR:p.netR,
-    state:p.state,reason:p.reason,createdAt:p.createdAt,activationAt:p.activationAt||p.createdAt,activationModel:p.activationModel||'LEGACY',executionTF:p.executionTF,expiresAt:p.expiresAt,lastBarClose:p.lastBarClose,
+    state:p.state,reason:p.reason,createdAt:p.createdAt,activationAt:p.activationAt||p.createdAt,activationModel:p.activationModel||'LEGACY',executionTF:p.executionTF,expiresAt:p.expiresAt,horizon:p.horizon||null,holdUntil:p.holdUntil||null,lastBarClose:p.lastBarClose,
     fillAt:p.fillAt,fillBarOpen:p.fillBarOpen||null,fillPrice:p.fillPrice,exitAt:p.exitAt,exitPrice:p.exitPrice,pnlPrice:p.pnlPrice,
     costs:p.costs,metadata:p.metadata,realBroker:false};
 }
 // Read-only: no provider calls, no implicit replay/backfill or AI polling.
-function afResearchDashboard(user){
+function afResearchDashboard(user,includeAudits){
   afRequireUser_(user);return afResearchLock_(function(){
     var book=afResearchBookLocked_(),owner=afResearchHash_(user),plans=afPaperLatest_(book,owner),now=Date.now();
     var today=Utilities.formatDate(new Date(now),'Asia/Bangkok','yyyy-MM-dd');
-    var rows=afResearchRows_(book,'Audit').filter(function(r){return r[2]===owner;}).slice(-10).reverse();
-    var audits=rows.map(function(r){var a=afResearchReadBlob_(book,r[5],r[6]);
-      return {runId:a.runId,recordedAt:a.recordedAt,status:a.status,reason:a.reason||a.status,auditRef:r[5],versions:a.versions,candidates:a.candidates,gates:a.gates,evidenceComplete:a.evidenceComplete};
+    // Automatic alert/stat requests need plan state, not the large diagnostic audit bodies.
+    var rows=includeAudits===false?[]:afResearchRows_(book,'Audit').filter(function(r){return r[2]===owner;}).slice(-10).reverse();
+    var audits=rows.map(function(r){var a=afResearchReadBlob_(book,r[5],r[6]),all=Array.isArray(a.candidates)?a.candidates:[];
+      // The audit blob keeps full evidence. A dashboard needs only a bounded summary;
+      // returning every candidate twice can make the browser process over 100 MB of JSON.
+      var preview=all.slice(0,60).map(function(c){
+        var gates=Array.isArray(c&&c.gates)?c.gates.slice(0,12).map(function(g){return typeof g==='string'?g:String(g&& (g.code||g.reason||g.name)||'UNKNOWN');}):[];
+        return {id:c&&c.id||null,accepted:c&&c.accepted===true,eligible:c&&c.eligible===true,gates:gates};
+      });
+      return {runId:a.runId,recordedAt:a.recordedAt,status:a.status,reason:a.reason||a.status,auditRef:r[5],versions:a.versions,candidates:preview,candidateCount:all.length,candidatesTruncated:all.length>preview.length,gates:a.gates,evidenceComplete:a.evidenceComplete};
     });
     var fills=plans.filter(function(p){return p.fillAt!==null&&Utilities.formatDate(new Date(p.fillAt),'Asia/Bangkok','yyyy-MM-dd')===today;}).map(afPaperPublic_);
     return Object.assign(afPaperSummary_(plans),{asOf:now,audits:audits,latestRuns:audits,
@@ -263,3 +285,4 @@ function afResearchDashboard(user){
       note:'Modeled paper evidence only. REVIEW is unresolved; no verified broker fills. Desired range is not a trade quota.'});
   });
 }
+

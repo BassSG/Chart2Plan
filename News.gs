@@ -111,3 +111,4 @@ function afNewsCheck_(symbol,force=false){
     return {ok:false,canTrade:false,blocked:false,code,events:[],pendingDeadlineTs:null};
   }
 }
+

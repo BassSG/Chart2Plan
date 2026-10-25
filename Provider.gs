@@ -92,3 +92,4 @@ function afReadMarket_(tf,limit){
  const bars=afMt5Bars_(raw,Number(metadata.point),seconds,now).reverse().map(function(b){return {openTime:b.t*1000,closeTime:(b.t+seconds)*1000,open:b.o,high:b.h,low:b.l,close:b.c,spread:b.s,volume:b.v,confirmed:true};});
  return {tf:tf,tfMs:seconds*1000,symbol:'XAUUSD',point:Number(metadata.point),sourceId:metadata.source_id,bars:bars};
 }
+

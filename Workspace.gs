@@ -18,7 +18,7 @@ function getCurrentPrices(){afAssertSandbox_();try{AF_PROVIDER_RUN.quote=null;va
 function manageTriggers(action,user){
  afRequireUser_(user);if(action==='deleteAll')return afCancelPaperMany_(user,null);
  if(action!=='getAll')return {success:false,message:'ไม่รองรับคำสั่งนี้'};
- var dashboard=afResearchDashboard(user);
+ var dashboard=afResearchDashboard(user,false);
  return {success:true,triggers:dashboard.plans.filter(function(p){return ['PENDING','ACTIVE','REVIEW'].includes(p.state);}).map(function(p){return {alertId:p.planKey,symbol:p.symbol,type:p.side===1?'Buy Limit':'Sell Limit',alertType:'Paper '+p.state,targetPrice:p.entry,status:p.state==='REVIEW'?'Review':'Active',paperState:p.state};}),mode:'TEST',realBroker:false};
 }
 function afCancelPaperMany_(user,ids){
@@ -28,7 +28,7 @@ function afCancelPaperMany_(user,ids){
 }
 function deleteAlert(id){return afCancelPaperMany_(afSoloIdentity_().username,[id]);}
 function deleteMultipleAlerts(ids,user){if(!Array.isArray(ids))return {success:false,message:'รายการแผนไม่ถูกต้อง'};return afCancelPaperMany_(user,ids);}
-function getTriggeredCount(user){afRequireUser_(user);var d=afResearchDashboard(user);return Object.assign({},d.counts,{mode:'TEST',realBroker:false,note:'ผลจำลองจากแท่งราคา ไม่ใช่ Fill โบรกเกอร์; กดอัปเดตผลแผนจำลองเพื่อประมวลผลแท่งใหม่',resolved:d.resolved||null});}
+function getTriggeredCount(user){afRequireUser_(user);var d=afResearchDashboard(user,false);return Object.assign({},d.counts,{mode:'TEST',realBroker:false,note:'ผลจำลองจากแท่งราคา ไม่ใช่ Fill โบรกเกอร์; กดอัปเดตผลแผนจำลองเพื่อประมวลผลแท่งใหม่',resolved:d.resolved||null});}
 function afLogAnalysis_(response,request){
  var saved=afAuditRecord_(response,request);response.auditRecord=saved;
  var book=afEnsureWorkspace_();
@@ -39,3 +39,4 @@ function afLogAnalysis_(response,request){
 }
 function afStoreResponse_(response,request){try{afLogAnalysis_(response,request);return response;}catch(_){return Object.assign({},response,{success:false,status:'SAVE_FAILED_OR_PARTIAL',plan:null,message:'ยังยืนยันการบันทึกใน Sheet ไม่ได้ อาจบันทึกได้บางส่วน กรุณาตรวจ Run ID ก่อนวิเคราะห์ซ้ำ\n'+response.message});}}
 function afDeleteOwnData(user,confirmation){afRequireUser_(user);if(confirmation!=='DELETE_MY_TEST_DATA')return {success:false,message:'กรุณายืนยันการล้างข้อมูลทดสอบ'};['Analysis','Plans'].forEach(function(name){var s=afEnsureWorkspace_().getSheetByName(name),rows=s.getDataRange().getValues(),col=name==='Analysis'?2:1;for(var i=rows.length-1;i>0;i--)if(rows[i][col]===user)s.deleteRow(i+1);});return {success:true,message:'ล้างข้อมูลทดสอบเฉพาะโปรเจกต์ใหม่แล้ว'};}
+

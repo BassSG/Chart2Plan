@@ -428,35 +428,29 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
     </div>
 
     <div id="mainApp">
-      <aside class="space-sidebar" aria-label="เมนูหลัก">
-        <a href="#spaceOverview" target="_self" class="space-brand" aria-label="Chart2Plan ภาพรวม"><img class="chart2plan-mark" src="https://basssg.github.io/AlphaSense-Analysis-Webapp/assets/brand/chart2plan-icon-192-v1.png" width="40" height="40" alt=""><span><strong>Chart<span class="chart2plan-number">2</span>Plan</strong><small>AI TRADING WORKSPACE</small></span></a>
-        <p class="space-nav-label">WORKSPACE</p>
-        <nav class="space-navigation" aria-label="ส่วนต่าง ๆ ของแดชบอร์ด">
-          <button type="button" class="space-nav-item is-active" data-section="spaceOverview" onclick="spaceNavigate('spaceOverview')" aria-current="location"><i class="fas fa-border-all" aria-hidden="true"></i>ภาพรวม</button>
-          <button type="button" class="space-nav-item" data-section="analysisSettings" onclick="spaceNavigate('analysisSettings')"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>วิเคราะห์ AI</button>
-          <button type="button" class="space-nav-item" data-section="spaceAlerts" onclick="spaceNavigate('spaceAlerts')"><i class="far fa-bell" aria-hidden="true"></i>การแจ้งเตือน</button>
-          <div class="space-nav-divider"></div>
-          <p class="space-nav-label">EXPLORE</p>
-          <button type="button" class="space-nav-item" onclick="scrollToDashboard()"><i class="fas fa-chart-line" aria-hidden="true"></i>Dashboard</button>
-          <button type="button" class="space-nav-item" onclick="showSnDForex()"><i class="fas fa-chart-area" aria-hidden="true"></i>SnD Forex</button>
-          <button type="button" class="space-nav-item" onclick="showGoogleSheet()"><i class="fas fa-table-cells" aria-hidden="true"></i>Google Sheet</button>
-          <button type="button" class="space-nav-item" onclick="navigateToAI()"><i class="fas fa-atom" aria-hidden="true"></i>เครื่องมือ AI เพิ่มเติม</button>
-        </nav>
-        <div class="space-sidebar-footer"><div class="orbit-line"></div><div class="space-caption">Clarity over noise.</div><div>Market intelligence, thoughtfully.</div></div>
-      </aside>
+      <header class="space-sidebar" aria-label="เมนูหลัก">
+  <a href="#spaceOverview" target="_self" class="space-brand" aria-label="Chart2Plan หน้าหลัก"><img class="chart2plan-mark" src="https://basssg.github.io/AlphaSense-Analysis-Webapp/assets/brand/chart2plan-icon-192-v1.png" width="36" height="36" alt=""><span><strong>Chart<span class="chart2plan-number">2</span>Plan</strong><small>ALLINDY × FIBO</small></span></a>
+  <nav class="space-navigation" aria-label="เมนูใช้งาน">
+    <button type="button" class="space-nav-item is-active" data-section="analysisSettings" onclick="spaceNavigate('analysisSettings')" aria-current="location"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>วิเคราะห์</span></button>
+    <button type="button" class="space-nav-item" data-section="analysisResult" onclick="spaceNavigate('analysisResult')"><i class="fas fa-bullseye" aria-hidden="true"></i><span>อ่านแผน</span></button>
+    <button type="button" class="space-nav-item" data-section="spaceAlerts" onclick="spaceNavigate('spaceAlerts')"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i><span>แผนที่บันทึก</span></button>
+    <button type="button" class="space-nav-item" data-section="afResearch" onclick="spaceNavigate('afResearch')"><i class="fas fa-sliders" aria-hidden="true"></i><span>ตรวจด้วยกฎ</span></button>
+  </nav>
+  <button type="button" class="c2p-sheet-link" onclick="showGoogleSheet()"><i class="fas fa-table-cells" aria-hidden="true"></i><span>Google Sheet</span></button>
+</header>
       <main class="space-workspace" id="spaceOverview">
         <div class="user-header">
-          <div><div class="space-breadcrumb">WORKSPACE / OVERVIEW</div><div class="welcome-text" id="welcomeText"><span class="skeleton-box" style="display:inline-block;width:150px;height:16px"></span></div></div>
+          <div><div class="space-breadcrumb">พื้นที่วิเคราะห์ส่วนตัว</div><div class="welcome-text" id="welcomeText"><span class="skeleton-box" style="display:inline-block;width:150px;height:16px"></span></div></div>
           <div class="user-actions">
             <button type="button" onclick="toggleTheme()" class="theme-toggle-btn" aria-label="สลับธีมมืดและสว่าง" title="สลับธีมมืดและสว่าง"><i id="themeToggleIcon" class="fas fa-sun" aria-hidden="true"></i></button>
-            <span class="space-caption">ทดสอบส่วนตัว · ไม่ต้องใส่ user/password</span>
+            <span class="c2p-mode-tag">แผนจำลอง · PAPER</span>
           </div>
         </div>
         <section class="mission-hero" aria-labelledby="spaceTitle">
-          <div class="mission-hero-copy"><div class="space-eyebrow">FROM CHARTS TO TRADING PLANS.</div><h1 id="spaceTitle">วิเคราะห์กราฟ <span>วางแผนเทรดด้วย AI</span></h1><p>วิธีใช้งานเดิม · วิเคราะห์ด้วยกลยุทธ์ Allindy + Fibo · โหมดทดสอบ ไม่ส่งคำสั่งจริง</p><div class="mission-meta"><b>✦</b> CHART2PLAN <span>·</span> AI TRADING WORKSPACE</div></div>
+          <div class="mission-hero-copy"><div class="space-eyebrow">XAU/USD · ALLINDY × FIBO</div><h1 id="spaceTitle">จากโซนบนกราฟ<br><span>สู่แผนที่อ่านเข้าใจ</span></h1><p>ระบบคำนวณราคา · AI ช่วยเลือกแผนและอธิบายเหตุผล</p></div>
           <div class="premium-clock-card"><small>BANGKOK · UTC+7</small><strong id="premiumClock">—</strong><span id="premiumDate">เวลาประเทศไทย</span></div>
         </section>
-        <div class="space-section-label"><span>MARKET SNAPSHOT</span><div class="premium-market-header"><small id="spacePriceStatus" role="status">กำลังโหลดราคาล่าสุด</small><button type="button" class="premium-text-button" onclick="loadPriceBar()" id="premiumRefreshPrices" aria-label="โหลดราคาล่าสุดอีกครั้ง" title="โหลดราคาใหม่ ไม่เรียก AI"><i class="fas fa-rotate-right" aria-hidden="true"></i></button></div></div>
+        <div class="space-section-label"><span>ราคาอ้างอิงล่าสุด</span><div class="premium-market-header"><small id="spacePriceStatus" role="status">กำลังโหลดราคาล่าสุด</small><button type="button" class="premium-text-button" onclick="loadPriceBar()" id="premiumRefreshPrices" aria-label="โหลดราคาล่าสุดอีกครั้ง" title="โหลดราคาใหม่ ไม่เรียก AI"><i class="fas fa-rotate-right" aria-hidden="true"></i></button></div></div>
       <div class="price-bar" id="priceBar">
          <span class="price-chip skeleton-box" style="width: 100px; height: 30px;"></span>
          <span class="price-chip skeleton-box" style="width: 100px; height: 30px;"></span>
@@ -466,10 +460,10 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
 
       <div class="space-analysis-grid">
         <section class="space-panel" id="analysisSettings" aria-labelledby="spaceSettingsTitle">
-          <div class="space-panel-heading"><span class="space-step-number">01</span><div><h2 id="spaceSettingsTitle">ตั้งค่าการวิเคราะห์</h2><p>เลือกตลาดและเครื่องมือของคุณ</p></div></div>
+          <div class="space-panel-heading"><span class="space-step-number">01</span><div><h2 id="spaceSettingsTitle">เริ่มวิเคราะห์</h2><p>เลือกโมเดล แล้วให้ระบบคัดแผนให้คุณ</p></div></div>
           <div class="space-form-body">
                   <div class="form-group">
-        <label for="symbol">สินทรัพย์ที่ต้องการวิเคราะห์</label>
+        <label for="symbol">ตลาดที่วิเคราะห์</label>
         <select id="symbol" class="symbol-select">
           <optgroup label="🏆 Forex Majors" id="forexSymbolsGroup">
             <option value="XAU/USD">🥇 XAU/USD (Gold)</option>
@@ -521,7 +515,7 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
       </div>
 
       <div class="form-group">
-        <label for="aiModel">โมเดล AI</label>
+        <label for="aiModel">ให้ AI ตัวไหนช่วยวิเคราะห์</label>
         <div class="space-model-controls">
           <select id="aiModel" class="model-select" style="flex:1 1 auto;">
             <option value="openai/chatgpt-4o-latest"  >gpt-4o</option>
@@ -557,7 +551,8 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
           </select>
         </div>
 
-        <div class="form-group form-col">
+      </div>
+        <details class="c2p-advanced"><summary>ปรับเกณฑ์คุณภาพเพิ่มเติม <small>ค่าเริ่มต้น: อัตโนมัติ</small></summary><div class="c2p-advanced-body"><div class="form-group form-col">
           <div class="space-qc-heading">
             <label for="qcLevel" style="margin-bottom: 0;">เกณฑ์คุณภาพ (QC)</label>
 
@@ -578,21 +573,18 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
             <option value="85" >85% - Ultra Stict</option>
           </select>
         </div>
-      </div>
-
-
-            <p class="space-field-note" style="margin:-9px 0 18px">เปิด QC อัตโนมัติ เพื่อประเมินหลักฐาน Allindy + Fibo ตามสภาวะตลาด</p>
+      <p class="space-field-note">คะแนนหลักฐานใช้คัดคุณภาพแผน ไม่ใช่โอกาสชนะ</p></div></details>
                   <button type="button" class="analyze-btn btn-click-effect" onclick="performAnalysis()" id="analyzeBtn">
         <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
-        <span>เริ่มวิเคราะห์ตลาด</span>
+        <span>วิเคราะห์และให้ AI เลือกแผน</span>
       </button>
 
-<div class="space-cta-note"><i class="fas fa-microchip" aria-hidden="true"></i> ใช้โมเดลที่เลือก · มีค่าเรียก AI ต่อรอบ</div>
-          </div>
+<div class="space-cta-note"><i class="fas fa-microchip" aria-hidden="true"></i> เรียก AI เมื่อมีแผนผ่านกฎ · มีค่าใช้บริการ</div>
+          <div class="c2p-how"><strong>รอบหนึ่งทำอะไรบ้าง?</strong><ol><li>คำนวณโซนและราคา</li><li>ให้ AI เลือกจากแผนที่ผ่านกฎ</li><li>ตรวจซ้ำและบันทึกแผนจำลอง</li></ol></div></div>
         </section>
-      <div class="result-container">
+      <div class="result-container" id="analysisResult">
         <div class="result-header">
-          <h3><span class="space-step-number">02</span> ผลการวิเคราะห์</h3>
+          <h3><span class="space-step-number">02</span> อ่านผลและแผนของคุณ</h3>
           <div class="space-result-actions">
             <span class="premium-history-count" id="premiumHistoryCount" aria-label="ตำแหน่งประวัติ"></span>
             <button type="button" class="copy-btn btn-click-effect" onclick="showPreviousResult()" title="ดูผลลัพธ์ก่อนหน้า">
@@ -607,7 +599,7 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
           </div>
         </div>
         <div id="modelInfo">
-          <i class="fas fa-microchip"></i> AI Engine: <span id="modelName">-</span>
+          <i class="fas fa-microchip"></i> โมเดลของรอบที่แสดง: <span id="modelName">-</span>
         </div>
         <div style="padding:16px 22px 0" id="premiumRunBannerHost"><div class="premium-run-banner" id="premiumRunBanner" hidden><span class="premium-spinner" aria-hidden="true"></span><div><strong id="premiumRunSymbol">กำลังวิเคราะห์</strong><small id="premiumInlineElapsed">รอคำตอบจากเซิร์ฟเวอร์</small></div><button type="button" id="premiumShowRun" onclick="premiumOpenRunDialog()">ดูสถานะ</button></div></div>
         <div class="result-content" id="result" aria-live="polite" aria-busy="false"><div class="space-empty-state"><div class="space-empty-radar" aria-hidden="true"><i class="fas fa-chart-line"></i></div><h4>มุมมองถัดไป เริ่มที่นี่</h4><p>เลือกตลาดและโมเดลที่ต้องการ<br>ผลวิเคราะห์และแผนการเข้าโซนจะแสดงในพื้นที่นี้</p><div class="space-empty-tags"><span>MULTI-TIMEFRAME</span><span>PENDING LIMIT</span><span>QUALITY CHECK</span></div></div></div>
@@ -616,11 +608,8 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
       </div>
       <section class="trigger-management" id="spaceAlerts" aria-labelledby="spaceAlertsTitle">
         <div class="space-alert-heading">
-          <div><h3 id="spaceAlertsTitle">สัญญาณและการแจ้งเตือน <span class="premium-alert-count" id="premiumAlertCount"></span></h3><p>รายการ Active / Review · สถานะในตารางไม่ใช่การยืนยัน Fill จากโบรกเกอร์</p></div>
+          <div><h3 id="spaceAlertsTitle">แผนจำลองที่บันทึกไว้ <span class="premium-alert-count" id="premiumAlertCount"></span></h3><p>ติดตามแผนเดิมและดูสถิติ · ผลจำลองยังไม่ยืนยัน Fill จากโบรกเกอร์</p></div>
           <div class="space-alert-actions">
-            <button type="button" class="stats-btn btn-click-effect" id="deleteUserDataBtn" onclick="showDeleteUserPanel()" title="ลบข้อมูลทั้งหมด">
-              <i class="fas fa-user-minus"></i> ลบข้อมูลผู้ใช้
-            </button>
             <button type="button" class="stats-btn btn-click-effect" id="showStatBtn" onclick="showStatPopup()" title="ดูสถิติการเทรด">
               <i class="fas fa-chart-bar"></i> สถิติการเทรด
             </button>
@@ -630,14 +619,17 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
           </div>
         </div>
 
-        <div class="space-alert-tools">
+        <details class="c2p-manage"><summary>จัดการรายการที่บันทึก</summary><div class="space-alert-tools">
+            <button type="button" class="stats-btn btn-click-effect" id="deleteUserDataBtn" onclick="showDeleteUserPanel()" title="ลบข้อมูลทั้งหมด">
+              <i class="fas fa-user-minus"></i> ลบข้อมูลผู้ใช้
+            </button>
           <button type="button" class="delete-all-btn btn-click-effect" onclick="confirmDeleteAllTriggers()" title="ลบ Trigger ทั้งหมด">
             <i class="fas fa-exclamation-triangle"></i> ลบทั้งหมด
           </button>
           <button type="button" class="edit-btn btn-click-effect" id="editBtn" onclick="toggleEditMode()" title="โหมดแก้ไข">
             <i class="fas fa-edit"></i> โหมดแก้ไข
           </button>
-        </div>
+        </div></details>
 
         <div class="table-container" id="triggerTableContainer">
           <table class="trigger-table" id="triggersTable">
@@ -646,12 +638,12 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
                 <th class="checkbox-col" style="display: none; text-align: center; width: 50px;">
                   <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)" title="เลือกทั้งหมด">
                 </th>
-                <th>Symbol</th>
-                <th>Type</th>
-                <th>Alert Type</th>
-                <th>Target Price</th>
-                <th>Status</th>
-                <th style="text-align: right;">Action</th>
+                <th>ตลาด</th>
+                <th>ฝั่ง</th>
+                <th>ประเภทแผน</th>
+                <th>ราคา</th>
+                <th>สถานะ</th>
+                <th style="text-align: right;">จัดการ</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -662,43 +654,7 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
         </div>
       </section>
 
-      <div class="dashboard-iframe-container" id="dashboardContainer" style="display:none;">
-        <div class="dashboard-loader" id="dashboardLoader">
-          <div class="loader">
-            <i class="fas fa-chart-line loader-icon"></i>
-          </div>
-          <div class="loading-text">กำลังโหลด Dashboard...</div>
-        </div>
-
-        <div class="dashboard-iframe-header">
-          <i class="fas fa-tachometer-alt"></i>
-          <span>AI Trading Dashboard – ภาพรวมการเทรดแบบเรียลไทม์</span>
-        </div>
-
-        <iframe class="dashboard-iframe" title="AI Trading Dashboard" id="dashboardIframe"
-          data-src="<?!= afSheetPreviewUrl_() ?>"
-          src="about:blank"
-          sandbox="allow-scripts allow-same-origin allow-forms">
-        </iframe>
-      </div>
-
-      <div class="dashboard-iframe-container" id="sndIframeContainer" style="display:none;">
-        <div class="dashboard-loader" id="sndLoader">
-          <div class="loader">
-            <i class="fas fa-globe loader-icon"></i>
-          </div>
-          <div class="loading-text">กำลังโหลด SnD Forex...</div>
-        </div>
-        <div class="dashboard-iframe-header">
-          <i class="fas fa-globe"></i>
-          <span>SnD Forex – Supply & Demand Dashboard</span>
-        </div>
-        <iframe class="dashboard-iframe" title="SnD Forex" id="sndIframe"
-                data-src="https://basssg.github.io/SnDForex/"
-                src="about:blank"
-                sandbox="allow-scripts allow-same-origin allow-forms">
-        </iframe>
-      </div>  
+      <div id="c2pResearchHost"></div>
 
       <div class="dashboard-iframe-container" id="deleteUserContainer" style="display:none;">
         <div class="dashboard-loader" id="deleteUserLoader">
@@ -755,3 +711,4 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
   <?!= include('ResearchUi'); ?>
 </body>
 </html>
+

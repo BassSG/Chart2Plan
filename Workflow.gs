@@ -15,6 +15,8 @@ function afBuildAnalystContext_(tradeType,verifiedQuote){
  var style={scalping:{execution:'5m',context:'1h'},daytrade:{execution:'15m',context:'4h'},swingtrade:{execution:'1h',context:'4h'}}[tradeType];
  if(!style)throw Error('AF_TRADE_STYLE_UNSUPPORTED');
  var quote=verifiedQuote||afPlannerQuote_(),pack=afLoadPack_(),asOf=Date.now(),frames={},zoneBook=[],fibBook=[];
+ var executionBars=pack[style.execution],executionKnowable=executionBars&&executionBars.length?executionBars[executionBars.length-1].closeTime:NaN;
+ if(!afPlannerNum_(executionKnowable))throw Error('AF_EXECUTION_FRAME_MISSING');
  Object.keys(pack).filter(function(tf){return tf!=='30m';}).forEach(function(tf){
   var bars=pack[tf],tfMs=AF_PLANNER_TF[tf];if(!tfMs||!Array.isArray(bars)||bars.length<50)throw Error('AF_MARKET_HISTORY_INCOMPLETE');
   if(bars.some(function(b){return b.confirmed!==true||!afPlannerNum_(b.openTime)||!afPlannerNum_(b.closeTime)||b.closeTime-b.openTime!==tfMs;}))throw Error('AF_MARKET_BAR_INVALID');
@@ -24,27 +26,28 @@ function afBuildAnalystContext_(tradeType,verifiedQuote){
   frames[tf]={tfMs:tfMs,lastClosedUtc:new Date(last.closeTime).toISOString(),atr:atr[atr.length-1],rsi:m[m.length-1].rsi,
    k:m[m.length-1].k,d:m[m.length-1].d,ema20:fast[fast.length-1],ema50:slow[slow.length-1],liquidity:[],
    closedOHLC:bars.slice(-3000).map(function(b){return [b.openTime,b.closeTime,b.open,b.high,b.low,b.close,b.volume||0];})};
-  var zs=afZoneReplay_(bars,tfMs,.01,last.closeTime),z=zs[zs.length-1];
+  var zs=afZoneReplay_(bars,tfMs,.01,last.closeTime,tf===style.execution),z=zs[zs.length-1];
   // ALL live zones/liquidity retained as obstacles, including low-score/tested ones.
   z.zones.forEach(function(q){zoneBook.push(Object.assign({},q,{tf:tf,tfSec:tfMs/1000,sourceClose:z.sourceClose,
-   family:'SD',isDefendCore:true,sourceAtr:q.atr,departureATR:q.departure||0,hasSource:!!q.source,hasClean:!!q.clean,
-   hasStruct:!!q.structure,hasDisp:Number(q.departure||0)>=.75,hasSweep:!!q.sweep,hasNested:false,
-   tags:{source:!!q.source,clean:!!q.clean,struct:!!q.structure,disp:Number(q.departure||0)>=.75,liq:!!q.sweep,nested:false},
-   sourceVersion:'All-Indy-1.3.5',adapter:'afZoneReplay_',adapterVersion:null}));});frames[tf].liquidity=z.liquidity;
-  if(tf!=='1m'){var f=afFiboReplay_(bars,tfMs),fLast=f.snapshots[f.snapshots.length-1];
+   family:q.family||q.pattern||'SD',isDefendCore:q.isDefendCore===true,sourceAtr:q.sourceAtr||q.atr,departureATR:q.departureATR||q.departure||0,
+   hasSource:!!q.source,hasClean:!!q.clean,hasStruct:!!q.structure,hasDisp:Number(q.departureATR||q.departure||0)>=.60,
+   hasSweep:!!q.sweep,hasNested:!!q.nested,tags:q.tags,
+   sourceVersion:'All-Indy-1.3.5',adapter:'afZoneReplay_',adapterVersion:'AF-ZONE-1.3.5-PORT-0.2'}));});frames[tf].liquidity=z.liquidity;
+  if(tf!=='1m'){var f=afFiboReplay_(bars,tfMs),eligibleSnapshots=f.snapshots.filter(function(s){return s.sourceClose<=executionKnowable;}),fLast=eligibleSnapshots[eligibleSnapshots.length-1];
+   if(!fLast)throw Error('AF_FIBO_NOT_KNOWABLE');
    fLast.records.forEach(function(r){fibBook.push(Object.assign({},r,{tf:tf,tfSec:tfMs/1000,adapter:'afFiboReplay_'}));});
    (fLast.forms||[]).forEach(function(r){fibBook.push(Object.assign({},r,{tf:tf,tfSec:tfMs/1000,adapter:'afFiboForm_',stage:1}));});}
  });
  return {asOf:asOf,symbol:'XAUUSD',sourceId:'Eightcap-MT5-Live',style:tradeType,executionTF:style.execution,contextTF:style.context,
   quote:{bid:quote.bid,ask:quote.ask,spread:quote.spread_price,timestamp:quote.timestamp,market_status:quote.market_status,weekend_test_mode:quote.weekend_test_mode,priceBasis:'Bid candles; current quote includes Ask'},
   frames:frames,zones:zoneBook,fibos:fibBook,
-  coverage:{canonicalSD:'computed',normalFibo:'computed',OB_QML_Flip:'unavailable',NeckDivergence:'unavailable',pineRuntimeParity:false}};
+  coverage:{canonicalSD:'computed',normalFibo:'computed',OB_QML_Flip:'computed',NeckDivergence:'computed',pineRuntimeParity:false}};
 }
 function afAnalystPrompt_(ctx,qc,candidates){
- var buyList=candidates.filter(function(c){return c.side===1&&c.eligible;});
- var sellList=candidates.filter(function(c){return c.side===-1&&c.eligible;});
+ var buyList=candidates.filter(function(c){return (c.side===1||c.side==='BUY')&&c.valid===true&&c.eligible===true;});
+ var sellList=candidates.filter(function(c){return (c.side===-1||c.side==='SELL')&&c.valid===true&&c.eligible===true;});
  return 'เลือกแผน paper Allindy + Fibo จาก eligible candidate ID ใน deterministicCandidates เท่านั้น หรือ NO_TRADE. '+
-  'ให้เลือกแผนจาก deterministicCandidates ที่ valid === true เท่านั้น และใช้ค่า meta.role, geom.entry, geom.sl, targets.tp, targets.netRR ที่คำนวณสำเร็จแล้วโดยตรง ไม่ต้องปฏิเสธแผนเพราะหาค่าตั้งต้นไม่เจอ. '+
+  'ให้เลือกแผนจาก deterministicCandidates ที่ valid === true และ eligible === true เท่านั้น ใช้ geom.entry, geom.sl, targets.tp, targets.netRR ที่คำนวณสำเร็จแล้วโดยตรง และอ่าน meta.role เมื่อมี ไม่ต้องปฏิเสธแผนเพราะหาค่าตั้งต้นไม่เจอหรือ legacy candidate ไม่มี meta.role. '+
   'ราคากับ hard gates คำนวณก่อน AI แล้ว คะแนนคือ evidenceScore ไม่ใช่ win probability. ห้ามลด gates เพื่อจำนวนไม้ เป้า 1–5 paper/day มีไว้สังเกตเท่านั้น. '+
   'ตอบ JSON object ตาม schema เคร่งครัด: {"decision":"PLAN หรือ NO_TRADE","candidateId":"eligible ID หรือ null เมื่อ NO_TRADE",'+
   '"analysis":"เหตุผลภาษาไทยตามตรรกะ All Indy + Fibo","buyAssessment":"ประเมิน BUY","sellAssessment":"ประเมิน SELL",'+
@@ -136,7 +139,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   var unifiedCandidates=afUnifiedCandidateList_(context,marketSpec,chartAtr);
   var standardCandidates=afPlannerBuild_(context,quality,Date.now());
   standardCandidates.forEach(function(c){c.valid===true?true:(c.valid=!!c.eligible);});
-  var allCandidates=unifiedCandidates.concat(standardCandidates);
+  var allCandidates=afRunDayTrade_(context,unifiedCandidates.concat(standardCandidates));
   var eligibleCandidates=allCandidates.filter(function(c){return c.eligible;});
   audit.candidates=allCandidates;
   if(!eligibleCandidates.length)return finish('NO_TRADE','PLANNER',afPlannerNoCandidateReason_(audit.snapshot,allCandidates),
@@ -206,6 +209,9 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   post.movement.state=post.movement.code?'REJECTED':'PASSED';
   if(post.movement.code)return finish('NO_TRADE','POST_QUOTE','AF_QUOTE_MOVED',null,true);
   if(admitted.accepted){
+   if(context.style==='daytrade'){var distanceCheck=afDayTradeDistance_(latest,admitted.candidate);
+    if(distanceCheck.code){post.candidate.state='REJECTED';post.candidate.code=distanceCheck.code;post.candidate.distance=distanceCheck;
+     return finish('NO_TRADE','POST_GATES',distanceCheck.code,null,true);}}
    audit.stage='POST_GATES';post.candidate.state='CHECKING';post.candidate.checkedAt=new Date().toISOString();
    var selected=admitted.candidate;
    if(selected.id&&selected.id.indexOf('UNI:')===0){
@@ -235,6 +241,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
      admitted.plan.evidence.policyVersion=AF_PLANNER_POLICY.version;audit.selectedCandidateId=selected.id;
    }
   }
+  if(admitted.accepted&&context.style==='daytrade')admitted.plan.evidence.dayTradeRules=afPlannerClean_(AF_DAYTRADE_RULES);
   var p=admitted.plan,lines=['📈 '+req.symbol+' | Allindy + Fibo',admitted.accepted?'แผนจำลองผ่านเงื่อนไข':'NO_TRADE — '+admitted.reasonCode];
   if(admitted.reasonCode!=='AF_AI_SCHEMA_INVALID'&&d&&typeof d.analysis==='string')lines.push(d.analysis,'BUY: '+d.buyAssessment,'SELL: '+d.sellAssessment);
   if(p)lines.push('TypeOrder: '+(p.side===1?'Buy Limit':'Sell Limit'),'Entry: '+p.entry,'StopLoss: '+p.stop,'TP1: '+p.target+' (RR '+p.netR.toFixed(2)+':1)');
@@ -278,8 +285,8 @@ function afResearchDiagnostics(tradeType,symbol,qc){
   audit.stage='QUOTE_PRE';AF_PROVIDER_RUN.quote=null;var preQuote=afPlannerQuote_();
   audit.stage='DATA_PRE';var ctx=afBuildAnalystContext_(style,preQuote);audit.snapshot=afPlannerSnapshot_(ctx,quality);
   var gate=afPlannerContextGate_(ctx,Date.now());if(gate)throw Error(gate);
-  audit.stage='PLANNER';var unified=afUnifiedCandidateList_(ctx,{mintick:0.01,totalCost:preQuote.spread_price+0.02,bid:preQuote.bid,ask:preQuote.ask,chartSec:(AF_PLANNER_TF['5m']||300000)/1000},ctx.frames['5m'].atr);
-  var legacy=afPlannerBuild_(ctx,quality,Date.now());legacy.forEach(function(c){c.valid=!!c.eligible;});audit.candidates=unified.concat(legacy);
+  audit.stage='PLANNER';var unified=afUnifiedCandidateList_(ctx,{mintick:0.01,totalCost:preQuote.spread_price+0.02,bid:preQuote.bid,ask:preQuote.ask,chartSec:AF_PLANNER_TF[ctx.executionTF]/1000},ctx.frames[ctx.executionTF].atr);
+  var legacy=afPlannerBuild_(ctx,quality,Date.now());legacy.forEach(function(c){c.valid=!!c.eligible;});audit.candidates=afRunDayTrade_(ctx,unified.concat(legacy));
   audit.reasonCode=audit.candidates.some(function(c){return c.eligible;})?'AF_ELIGIBLE_CANDIDATES':afPlannerNoCandidateReason_(audit.snapshot,legacy);
   audit.gateCodes=audit.snapshot.evidenceCounts.gateCodes.slice();
   unified.forEach(function(c){(c.gateCodes||[]).forEach(function(g){if(audit.gateCodes.indexOf(g)<0)audit.gateCodes.push(g);});});
@@ -288,3 +295,4 @@ function afResearchDiagnostics(tradeType,symbol,qc){
  }catch(e){audit.reasonCode=afWorkflowFailureCode_(e);audit.gateCodes=[audit.reasonCode];return finish(false,afWorkflowStatus_(audit.reasonCode));}
  finally{if(held&&lock){try{lock.releaseLock();}catch(_){}}}
 }
+

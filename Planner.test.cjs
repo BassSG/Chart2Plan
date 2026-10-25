@@ -8,7 +8,7 @@ function runtime(provider=false){
  let now=START;class Clock extends Date{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}
  const c=vm.createContext({Date:Clock,console});
  if(!provider)c.AF_PROVIDER_RUN={responses:{},quote:null,metadata:null};
- for(const name of ['Market.gs','Allindy.gs','Fibo.gs','AfUnifiedPlannerEngine.gs',...(provider?['Provider.gs']:[]),'Planner.gs','Workflow.gs'])
+ for(const name of ['Market.gs','Allindy.gs','Fibo.gs','AfUnifiedPlannerEngine.gs',...(provider?['Provider.gs']:[]),'Planner.gs','DayTrade.gs','Workflow.gs'])
   vm.runInContext(fs.readFileSync(path.join(root,name),'utf8'),c,{filename:name});
  c.setNow=n=>{now=n;};return c;
 }
@@ -21,7 +21,7 @@ function fixture(){
   frames[tf]={tfMs:ms,lastClosedUtc:new Date(end).toISOString(),atr:1,ema20:101,ema50:100,liquidity:[],closedOHLC:ohlc};
  }
  const zones=[1,-1].map(s=>({id:s===1?'buy-zone':'sell-zone',tf:'5m',tfMs:300000,side:s,
-  lo:s===1?98:101,hi:s===1?99:102,atr:1,score:100,tests:0,knownAt:close(300000)-300000,
+  lo:s===1?98:101,hi:s===1?99:102,atr:1,score:100,tests:0,knownAt:close(300000)-300000,family:'SD',familyBit:2,families:2,isDefendCore:true,historyComplete:true,departed:true,
   sourceClose:close(300000),sourceVersion:'All-Indy-1.3.5',adapter:'afZoneReplay_',adapterVersion:null}));
  const fibos=[1,-1].map(s=>{const zero=s===1?96:104,span=3*s;return {
   id:s===1?'buy-fibo':'sell-fibo',tf:'1h',tfMs:3600000,side:s,sourceVersion:'EBW-Fibo-1.10.19',adapterVersion:'AF-FORM-CONTEXT-0.2',symbol:'XAUUSD',
@@ -67,7 +67,7 @@ function workflow(opts={}){
   return {decision:opts.aiDecision||decision(selected&&selected.id),cost:.01,usage:{prompt_tokens:60,completion_tokens:40,total_tokens:100,secret:'DO_NOT_RETURN'}};};
  c.afStoreResponse_=(r)=>{count.store++;if(opts.storeError)throw Error('private provider url token');
   return opts.storeFail?Object.assign({},r,{success:false,status:'SAVE_FAILED_OR_PARTIAL',plan:null}):r;};
- const r=c.processAnalysisWithDetailedLog('scalping',opts.symbol||'XAU/USD','owner','same-model',opts.qc);
+ const r=c.processAnalysisWithDetailedLog(opts.tradeType||ctx.style||'scalping',opts.symbol||'XAU/USD','owner','same-model',opts.qc);
  auditValid(r.audit);return {r,c,count};
 }
 for(const f of fs.readdirSync(root).filter(f=>f.endsWith('.gs')))new vm.Script(fs.readFileSync(path.join(root,f),'utf8'),{filename:f});
@@ -97,25 +97,25 @@ test('SL outward and TP conservative tick 0.01 on both sides',()=>{
   const z=x.zones.find(z=>z.id===v.zoneId);assert.ok(v.side==='BUY'?v.stop<=z.lo-z.atr*.08:v.stop>=z.hi+z.atr*.08);
   assert.ok(v.side==='BUY'?v.target<=v.evidence.nextFibo.price:v.target>=v.evidence.nextFibo.price);}
 });
-test('first opposing zone (even exhausted/low score) clips TP',()=>{
- const c=runtime(),x=fixture();x.zones[1].tests=9;x.zones[1].score=0;
- const b=buy(c,x);assert.ok(b.eligible);assert.equal(b.target,100.99);assert.equal(b.evidence.firstObstacle.kind,'ZONE');
+test('first qualifying opposing zone is respected while nearer Fibo target wins',()=>{
+ const c=runtime(),x=fixture();x.zones[1].tests=9;x.zones[1].score=28;x.zones[1].isDefendCore=true;x.zones[1].familyBit=2;
+ const b=buy(c,x);assert.ok(b.eligible);assert.equal(b.target,100.85);assert.equal(b.evidence.firstObstacle.kind,'DEFEND_ZONE');
 });
 test('first liquidity clips before farther opposing zone',()=>{
  const c=runtime(),x=fixture();x.frames['15m'].liquidity=[{side:-1,price:100.3,knownAt:START-900000}];
- const b=buy(c,x);assert.ok(b.eligible);assert.equal(b.target,100.29);assert.equal(b.evidence.firstObstacle.kind,'LIQUIDITY');
+ const b=buy(c,x);assert.ok(b.eligible);assert.equal(b.target,100.3);assert.equal(b.evidence.firstObstacle.kind,'LIQUIDITY');
 });
-test('near obstacle rejects net R rather than crossing it',()=>{
+test('near obstacle fails the 0.75 ATR room gate before Net R',()=>{
  const c=runtime(),x=fixture();x.frames['5m'].liquidity=[{side:-1,price:98.8,knownAt:START-300000}];
- assert.equal(buy(c,x).gateCodes[0],'AF_NET_RR_LOW');
+ assert.equal(buy(c,x).gateCodes[0],'AF_FIRST_OBSTACLE_TOO_CLOSE');
 });
-test('no next target, already reached, or target behind entry never skips ahead',()=>{
+test('final target hit latches the Book closed; targets behind entry never skip ahead',()=>{
  const c=runtime();let x=fixture();x.fibos[0].targets.forEach(t=>t.pending=false);x.fibos[0].hitRatios=x.fibos[0].targets.map(t=>t.ratio);
- assert.equal(buy(c,x).gateCodes[0],'AF_NO_NEXT_FIBO_TARGET');
+ assert.equal(buy(c,x).gateCodes[0],'AF_FIBO_BOOK_CLOSED_INTRABAR');
  x=fixture();x.fibos[0].span=.2;x.fibos[0].targets.forEach(t=>t.price=x.fibos[0].zero+x.fibos[0].span*t.ratio);
- assert.equal(buy(c,x).gateCodes[0],'AF_NO_NEXT_FIBO_TARGET');
+ assert.equal(buy(c,x).gateCodes[0],'AF_FIBO_BOOK_CLOSED_INTRABAR');
  x=fixture();x.zones=x.zones.slice(0,1);x.fibos[0].span=1;x.fibos[0].targets.forEach(t=>t.price=x.fibos[0].zero+t.ratio);
- assert.equal(buy(c,x).gateCodes[0],'AF_FIBO_TARGET_ALREADY_REACHED');
+ const b=buy(c,x);assert.ok(b.eligible);assert.equal(b.evidence.nextFibo.ratio,4.236);
 });
 test('native shared IDs across TF do not collide; stable across run/order',()=>{
  const c=runtime(),x=fixture();x.zones[0].id='shared-zone';x.fibos[0].id='shared-fibo';
@@ -133,6 +133,8 @@ test('duplicate keys reject every ambiguous source and collapse deterministicall
 });
 test('far-away Pending Limit plans fail closed with explicit distance gate',()=>{
  const c=runtime(),x=fixture();const z=x.zones.find(v=>v.side===-1);z.lo=4478;z.hi=4480;z.score=100;z.atr=1;
+ const f=x.fibos.find(v=>v.side===-1);f.zero=4490;f.root=4495;f.span=-20;f.anchors.a.p=4495;f.anchors.b.p=4470;f.anchors.c.p=4490;f.legLow=4470;f.legHigh=4495;
+ f.targets.forEach(t=>{t.price=f.zero+f.span*t.ratio;});
  const far=build(c,x,null).filter(v=>v.zoneId===z.id);assert.ok(far.length>0);assert.ok(far.every(v=>!v.eligible&&v.gateCodes[0]==='AF_ENTRY_TOO_FAR_FROM_MARKET'));
 });
 
@@ -144,7 +146,7 @@ test('invalid numerics, TF ATR, source times, stale data and costs fail closed',
  const c=runtime();const cases=[
   [x=>x.zones[0].lo='98','AF_ZONE_INVALID'],[x=>x.zones[0].tests=null,'AF_ZONE_INVALID'],
   [x=>x.zones[0].score=27,'AF_ZONE_SCORE_LOW'],[x=>x.frames['5m'].atr=0.1,'AF_STOP_ATR_RANGE'],
-  [x=>x.frames['5m'].atr=NaN,'AF_FRAME_INVALID_OR_STALE'],[x=>x.zones[0].atr=100,'AF_STOP_ATR_RANGE'],
+  [x=>x.frames['5m'].atr=NaN,'AF_FRAME_INVALID_OR_STALE'],
   [x=>x.zones[0].atr=.01,'AF_ZONE_EXHAUSTED_OR_WIDE'],[x=>x.zones[0].tfMs=60000,'AF_TF_INCOMPARABLE'],
   [x=>x.zones[0].knownAt=START+1,'AF_ZONE_NOT_KNOWABLE'],[x=>x.fibos[0].sourceClose=START+1,'AF_FIBO_NOT_KNOWABLE_OR_STALE'],
   [x=>x.fibos[0].historyComplete=false,'AF_FIBO_INVALID'],[x=>x.fibos[0].targets[0].price='100','AF_FIBO_TARGETS_INVALID'],
@@ -197,11 +199,12 @@ test('post-AI freshness, movement, entry touch, cost and RR gates',()=>{
  let r=workflow({delay:121000}).r;assert.equal(r.audit.reasonCode,'AF_SNAPSHOT_STALE');
  r=workflow({quoteAfter:{bid:101,ask:101.1}}).r;assert.equal(r.audit.reasonCode,'AF_QUOTE_MOVED');
  const x=fixture();Object.assign(x.zones[0],{lo:99.3,hi:100.3});Object.assign(x.zones[1],{lo:101.5,hi:102.5});
- const touched=workflow({ctx:x,quoteAfter:{bid:99.75,ask:99.8,spread_price:0.05}});r=touched.r;assert.equal(touched.count.ai,1);
+ x.fibos[0].span=4;x.fibos[0].anchors.b.p=100;x.fibos[0].legHigh=101;x.fibos[0].targets.forEach(t=>{t.price=x.fibos[0].zero+x.fibos[0].span*t.ratio;});
+ const touched=workflow({ctx:x,legacySelection:true,quoteAfter:{bid:99.75,ask:99.8,spread_price:0.05}});r=touched.r;assert.equal(touched.count.ai,1);
  assert.equal(r.audit.stage,'POST_GATES');assert.equal(r.audit.reasonCode,'AF_LIMIT_ALREADY_MARKETABLE');
  r=workflow({quoteAfter:{ask:100.5,spread_price:.5}}).r;assert.equal(r.audit.reasonCode,'AF_COST_TOO_HIGH');assert.equal(r.audit.selectedCandidateId,null);
- const y=fixture();y.quote.ask=100;y.quote.spread=0;y.frames['5m'].liquidity=[{side:-1,price:99.75,knownAt:START-300000}];
- const rr=workflow({ctx:y});assert.equal(rr.count.ai,1);assert.equal(rr.r.audit.stage,'POST_GATES');assert.equal(rr.r.audit.reasonCode,'AF_NET_RR_LOW');
+ const y=fixture();y.quote.ask=100;y.quote.spread=0;y.frames['5m'].liquidity=[{side:-1,price:99.82,knownAt:START-300000}];
+ const rr=workflow({ctx:y,legacySelection:true});assert.equal(rr.count.ai,1);assert.equal(rr.r.audit.stage,'POST_GATES');assert.equal(rr.r.audit.reasonCode,'AF_NET_RR_LOW');
 });
 test('AI schema reject still rechecks quote/news; cannot spoof prices',()=>{
  const {r,count}=workflow({aiDecision:decision('fake',{entry:9999})});assert.equal(r.audit.reasonCode,'AF_AI_SCHEMA_INVALID');
@@ -233,15 +236,15 @@ test('real context adapters execute; coverage only after replay, preserve all ob
  c.afLoadPack_=()=>{const p={};for(const [tf,ms] of Object.entries({'1m':60000,'5m':300000,'15m':900000,'1h':3600000,'4h':14400000})){
   const end=Math.floor(START/ms)*ms;p[tf]=Array.from({length:60},(_,i)=>({openTime:end-(60-i)*ms,closeTime:end-(59-i)*ms,open:100+Math.sin(i),high:102+Math.sin(i),low:98+Math.sin(i),close:100+Math.cos(i),volume:1,confirmed:true}));}return p;};
  const ctx=c.afBuildAnalystContext_('scalping');assert.equal(c.afPlannerContextGate_(ctx,START),null);
- assert.equal(ctx.coverage.canonicalSD,'computed');assert.equal(ctx.coverage.OB_QML_Flip,'unavailable');assert.ok(ctx.frames['1m'].liquidity.length);
+ assert.equal(ctx.coverage.canonicalSD,'computed');assert.equal(ctx.coverage.OB_QML_Flip,'computed');assert.ok(ctx.frames['1m'].liquidity.length);
  assert.equal(c.afPlannerSnapshot_(ctx,c.afPlannerQc_(null)).provenance.canonicalSD.adapter,'afZoneReplay_');
  auditValid(Object.assign(c.afPlannerAudit_('real-context'),{snapshot:c.afPlannerSnapshot_(ctx,c.afPlannerQc_(null)),candidates:build(c,ctx)}));
  // Deterministic nonempty replay outputs test assembly metadata (the sine bars above need not form zones).
  c.afZoneReplay_=(bars,tfMs)=>[{sourceClose:bars[bars.length-1].closeTime,zones:[Object.assign(copy(fixture().zones[0]),{tfMs})],liquidity:[]}];
- c.afFiboReplay_=(bars,tfMs)=>({snapshots:[{records:[Object.assign(copy(fixture().fibos[0]),{tfMs})]}]});
+ c.afFiboReplay_=(bars,tfMs)=>({snapshots:[{sourceClose:bars[bars.length-1].closeTime,records:[Object.assign(copy(fixture().fibos[0]),{tfMs})]}]});
  const assembled=c.afBuildAnalystContext_('scalping');assert.ok(assembled.zones.length);assert.ok(assembled.fibos.length);
  for(const z of assembled.zones){assert.equal(z.sourceVersion,'All-Indy-1.3.5');assert.equal(z.adapter,'afZoneReplay_');
-  assert.equal(z.adapterVersion,null);assert.equal(z.sourceClose,Date.parse(assembled.frames[z.tf].lastClosedUtc));}
+  assert.equal(z.adapterVersion,'AF-ZONE-1.3.5-PORT-0.2');assert.equal(z.sourceClose,Date.parse(assembled.frames[z.tf].lastClosedUtc));}
  for(const f of assembled.fibos)assert.equal(f.adapter,'afFiboReplay_');
 });
 test('frozen source evidence on accepted AND early-rejected candidates, independent of context',()=>{
@@ -265,7 +268,7 @@ test('source/adapter/policy provenance includes thresholds, not just planner ver
  const c=runtime(),x=fixture(),s=c.afPlannerSnapshot_(x,c.afPlannerQc_(70)),e=buy(c,x).evidence;
  for(const p of [s.provenance,e.provenance]){
   assert.equal(p.source.sourceId,'Eightcap-MT5-Live');assert.equal(p.canonicalSD.sourceVersion,'All-Indy-1.3.5');
-  assert.equal(p.canonicalSD.adapter,'afZoneReplay_');assert.equal(p.canonicalSD.adapterVersion,null);
+  assert.equal(p.canonicalSD.adapter,'afZoneReplay_');assert.equal(p.canonicalSD.adapterVersion,'AF-ZONE-1.3.5-PORT-0.2');
   assert.equal(p.normalFibo.sourceVersion,'EBW-Fibo-1.10.19');assert.equal(p.normalFibo.adapterVersion,'AF-FORM-CONTEXT-0.2');
   assert.equal(p.normalFibo.adapter,'afFiboReplay_');assert.equal(p.policy.version,c.AF_PLANNER_POLICY.version);
   assert.equal(p.policy.minNetR,1.5);assert.equal(p.policy.extraCost,.02);assert.equal(p.pineParityVerified,false);
@@ -431,4 +434,120 @@ test('postChecks leaves complete pre-AI snapshot/candidates immutable for accept
   assert.deepEqual(copy(r.audit.snapshot),expectedSnapshot);assert.ok(r.audit.candidates.every(v=>v.evidence.postQuote===undefined));
  }
 });
+test('daytrade distance gate includes exact 6 ATR and rejects just beyond on both sides',()=>{
+ const c=runtime(),ctx=fixture();ctx.style='daytrade';
+ for(const side of [1,-1]){const reference=side===1?ctx.quote.ask:ctx.quote.bid;
+  for(const n of [5.999999,6,6.000001]){const result=c.afDayTradeDistance_(ctx,{side,entry:reference-side*n});assert.equal(result.code,n<=6?null:'AF_ENTRY_TOO_FAR_FROM_MARKET');}}
+});
+test('daytrade distance cannot accept missing invalid ATR or quote',()=>{const c=runtime();for(const value of [0,-1,null,NaN,'1',Infinity]){const ctx=fixture();ctx.frames['5m'].atr=value;assert.equal(c.afDayTradeDistance_(ctx,{side:1,entry:98}).code,'AF_DAYTRADE_DISTANCE_DATA_INVALID');}});
+test('prompt retains eligible BUY SELL in numeric and string form with exact prices',()=>{
+ const c=runtime(),ctx=fixture(),raw=[1,-1,'BUY','SELL'].map((side,i)=>({id:'known-'+i,side,entry:98+i,stop:97+i,target:104+i,netR:2,eligible:true,gateCodes:[]}));
+ const candidates=c.afRunDayTrade_(ctx,raw),prompt=c.afAnalystPrompt_(ctx,null,candidates),body=JSON.parse(prompt.slice(prompt.lastIndexOf('{"snapshot":'))),book=body.deterministicCandidates;
+ assert.equal(book.buy.length,2);assert.equal(book.sell.length,2);assert.ok(book.buy.concat(book.sell).every(x=>x.valid===true&&x.eligible===true));
+ for(const v of book.buy.concat(book.sell)){const original=raw.find(x=>x.id===v.id);assert.equal(v.geom.entry,original.entry);assert.equal(v.geom.sl,original.stop);assert.equal(v.targets.tp,original.target);assert.equal(v.targets.netRR,original.netR);}
+ assert.equal(raw[0].valid,undefined);
+});
+test('contradictory false flags and far entry never become eligible through normalization',()=>{
+ const c=runtime(),ctx=fixture();ctx.style='daytrade';const raw=[{id:'false-valid',side:1,entry:98,eligible:true,valid:false},{id:'false-eligible',side:1,entry:98,eligible:false,valid:true},{id:'far',side:1,entry:90,eligible:true,valid:true}];
+ const got=c.afRunDayTrade_(ctx,raw);assert.ok(got.every(x=>x.valid===false&&x.eligible===false));assert.ok(got[2].gateCodes.includes('AF_ENTRY_TOO_FAR_FROM_MARKET'));
+});
+test('eligible legacy-only candidates reach model prompt without unified candidates',()=>{
+ const c=runtime(),ctx=fixture(),list=c.afRunDayTrade_(ctx,build(c,ctx));assert.ok(list.every(x=>x.eligible));
+ const prompt=c.afAnalystPrompt_(ctx,null,list),body=JSON.parse(prompt.slice(prompt.lastIndexOf('{"snapshot":')));assert.equal(body.deterministicCandidates.buy.length,1);assert.equal(body.deterministicCandidates.sell.length,1);
+});
+test('daytrade rolling horizon helper rejects non-numeric acceptance time',()=>{const c=runtime();for(const v of [null,undefined,0,-1,NaN,'100'])assert.throws(()=>c.afDayTradeHorizon_(v),/AF_DAYTRADE_TIME_INVALID/);assert.equal(c.afDayTradeHorizon_(START).pendingDeadline,START+3600000);});
+test('daytrade workflow accepts deterministic plans and carries shared rules for ledger',()=>{
+ const ctx=fixture();ctx.style='daytrade';ctx.executionTF='15m';ctx.contextTF='4h';ctx.zones.forEach(z=>{z.tf='15m';z.tfMs=900000;});
+ const {r,count}=workflow({ctx});assert.equal(count.ai,1);assert.equal(r.status,'PAPER_SIGNAL_READY');assert.equal(r.plan.evidence.dayTradeRules.pendingMinutes,60);assert.equal(r.plan.evidence.dayTradeRules.maxHoldMinutes,240);
+ assert.equal(r.plan.entry,r.audit.candidates.find(x=>x.id===r.audit.selectedCandidateId).entry);
+});
+test('daytrade post-AI distance recheck rejects using latest quote without moving prices',()=>{
+ const c=runtime(),ctx=fixture();ctx.style='daytrade';const candidate={side:'BUY',entry:94.1};assert.equal(c.afDayTradeDistance_(ctx,candidate).code,null);
+ const latest=copy(ctx);latest.quote.ask=100.11;latest.quote.bid=100.01;assert.equal(c.afDayTradeDistance_(latest,candidate).code,'AF_ENTRY_TOO_FAR_FROM_MARKET');assert.equal(candidate.entry,94.1);
+});
+test('Pine Source Q caps evidence groups and ignores MTF and HTF metadata',()=>{
+ const c=runtime(),z={quality:1,departureATR:1.5,tags:255,families:2,tests:0,departed:true,historyComplete:true,sourceBornSeq:0,baseBars:1};
+ assert.equal(c.afZoneScore_(z,0,800),84);
+ assert.equal(c.afZoneScore_(Object.assign({},z,{tfCount:7,maxTfSec:86400,mtfBonus:8,htfBonus:10}),0,800),84);
+ assert.equal(c.afZoneScore_(Object.assign({},z,{scoreModel:'Legacy weights'}),0,800),99);
+ assert.ok(c.afZoneViewRank_(Object.assign({isDefendCore:true,score:75,side:1},z),0,1,3,14400,900)>75);
+});
+test('Pine MAJOR evidence threshold and Direct Limit boundaries are exact',()=>{
+ const c=runtime(),z={familyBit:2,isDefendCore:true,tags:32,score:76,tests:0};
+ assert.equal(c.afZoneRole_(z,75.99),'REACTION');assert.equal(c.afZoneRole_(z,76),'MAJOR');
+ assert.equal(c.afZoneRole_(Object.assign({},z,{tags:0}),90),'REACTION');
+ assert.equal(c.afZoneDirectLimitOK_(Object.assign({},z,{tests:1})),true);
+ assert.equal(c.afZoneDirectLimitOK_(Object.assign({},z,{tests:2})),false);
+ for(const [score,tests,ok] of [[70,0,true],[69.99,0,false],[70,1,false]])assert.equal(c.afZoneDirectLimitOK_({familyBit:2,tags:0,score,tests}),ok);
+ const mapped=c.afUnifiedMapZone_({id:'q',side:1,lo:98,hi:99,atr:1,knownAt:START,score:75,tests:0,family:'SD',source:'SD-RBR',tfMs:300000,historyComplete:true,departed:true},[]);
+ assert.equal(c.evaluateZoneEligibility_(mapped,1,300).role,'REACTION');assert.equal(c.evaluateZoneEligibility_(mapped,1,300).effectiveScore,75);
+});
+test('Pine adaptive entry depths cover every role and test branch with capped extension',()=>{
+ const c=runtime(),base={side:1,lo:98,hi:99,atr:1,familyBit:2,isDefendCore:true};
+ for(const [score,tags,tests,expected] of [[90,32,0,.28],[89,32,0,.33],[75,0,0,.45],[69,0,0,.52],[89,32,1,.50],[75,0,1,.58]]){
+  assert.equal(c.afZoneAdaptiveDepth_(Object.assign({},base,{score,tags,tests}),null,1),expected);
+ }
+ assert.equal(c.afZoneAdaptiveDepth_(Object.assign({},base,{score:75,tags:0,tests:1}),96.5,1),.65);
+});
+test('deepest liquidity edge wins; absent and near anchors use correct chart ATR buffer',()=>{
+ const c=runtime(),x=fixture(),z=x.zones[0];x.frames['5m'].liquidity=[{side:1,price:97.8,lo:97.79,hi:97.81,knownAt:START-3600000},{side:1,price:97.2,lo:97.1,hi:97.3,knownAt:START-3600000}];
+ assert.equal(c.afPlannerProtectiveAnchor_(x,z).anchor.price,97.1);
+ assert.equal(buy(c,x).evidence.stopBuffer,.15);
+ x.frames['5m'].liquidity=x.frames['5m'].liquidity.slice(0,1);assert.equal(buy(c,x).evidence.stopBuffer,.25);
+ x.frames['5m'].liquidity=[];z.atr=100;assert.equal(buy(c,x).evidence.stopBuffer,.15);assert.equal(buy(c,x).evidence.stopPolicy.sourceATR,1);
+});
+test('BookFamily gives Main Joint Continuation roles and keeps Neck independent',()=>{
+ const c=runtime(),m={valid:true,side:1,id:100,aCycle:0,cCycle:20,known:200,breakT:null,lo:90,hi:110};
+ const a={kind:-1,cycle:20,t:110,p:95},b={kind:1,cycle:30,t:120,p:105},z={kind:-1,cycle:40,t:130,p:100};
+ assert.equal(c.afBookFamilyRole_(m,a,b,z,false,240),1);m.breakT=250;
+ assert.equal(c.afBookFamilyRole_(m,a,b,z,false,300),2);assert.equal(c.afBookFamilyRole_(m,a,b,z,true,300),0);
+ assert.equal(c.afBookFamilyRole_(m,a,b,Object.assign({},z,{t:100}),false,300),0);
+});
+test('opposite confirmed Break takes over only after the correct first target and later A B C',()=>{
+ const c=runtime(),fresh={side:-1,a:{t:100},b:{t:110},c:{t:120}};
+ for(const [method,hits,at,closed] of [[1,[2.618],100,true],[3,[1.618],100,true],[1,[1.618],100,false],[1,[2.618],99,false]]){
+  const old={side:1,method,born:100,closedT:null,hitRatios:hits};fresh.a.t=at;c.afBookTakeover_([old],fresh,500);
+  assert.equal(old.closedT,closed?500:null);if(closed)assert.equal(old.closedKind,2);
+ }
+});
+test('higher TF closed source remains ACTIVE despite older close; smaller TF target hits advance pending',()=>{
+ const c=runtime(),x=fixture(),f=x.fibos[0],end=Date.parse(x.frames['4h'].lastClosedUtc);
+ Object.assign(f,{tf:'4h',tfMs:14400000,sourceClose:end,asof:end,knownAt:end-14400000,born:end-28800000,legLow:95,legHigh:101,status:2});
+ f.anchors.c.t=end-30000000;f.zeroT=f.anchors.c.t;
+ let b=buy(c,x);assert.ok(b.eligible);assert.equal(b.evidence.executionSafety.status,2);
+ x.frames['5m'].closedOHLC.at(-1)[3]=101;
+ b=buy(c,x);assert.ok(b.eligible);assert.equal(b.evidence.nextFibo.ratio,2);assert.equal(b.evidence.executionSafety.status,2);assert.equal(f.hitRatios.length,0);
+});
+test('smaller TF zero breach and final 5.472 touch latch the source Book unusable',()=>{
+ const c=runtime();let x=fixture();x.frames['5m'].closedOHLC.at(-1)[4]=95.9;
+ assert.equal(buy(c,x).gateCodes[0],'AF_EXECUTION_FIBO_BREACHED');
+ x=fixture();x.frames['5m'].closedOHLC.at(-1)[3]=113;
+ assert.equal(buy(c,x).gateCodes[0],'AF_FIBO_BOOK_CLOSED_INTRABAR');
+});
+test('equal direction cannot pair outside the leg before C or across protected zero',()=>{
+ const c=runtime(),x=fixture(),z=x.zones[0],f=x.fibos[0];
+ assert.equal(c.afPlannerZoneFiboRelation_(x,z,f).related,true);
+ z.lo=99.2;z.hi=99.8;assert.equal(c.afPlannerZoneFiboRelation_(x,z,f).related,false);assert.equal(buy(c,x).gateCodes[0],'AF_FIBO_RELATION_INVALID');
+ z.lo=98;z.hi=99;z.knownAt=f.anchors.c.t-1;assert.equal(c.afPlannerZoneFiboRelation_(x,z,f).code,6);
+ z.knownAt=START-300000;z.lo=95.99;assert.equal(c.afPlannerZoneFiboRelation_(x,z,f).related,false);
+});
+test('opposing Defend or FVG floor is 28 and an overlapping obstacle blocks immediately',()=>{
+ const c=runtime(),x=fixture();Object.assign(x.zones[1],{lo:99,hi:100,score:27});assert.ok(buy(c,x).eligible);
+ x.zones[1].score=28;assert.equal(buy(c,x).gateCodes[0],'AF_FIRST_OBSTACLE_TOO_CLOSE');
+ Object.assign(x.zones[1],{isDefendCore:false,families:64,familyBit:64,family:'FVG',lo:98.5,hi:99});assert.equal(buy(c,x).gateCodes[0],'AF_FIRST_OBSTACLE_TOO_CLOSE');
+});
+test('OB uses volume pivot 10 and Low to HL2 bounds with historical retests; chart-local only',()=>{
+ const c=runtime(),t=START-3600000,bars=Array.from({length:31},(_,i)=>({openTime:t+i*60000,closeTime:t+(i+1)*60000,open:100,close:100,high:102,low:98,volume:1}));
+ Object.assign(bars[20],{open:95,close:95,high:101,low:90,volume:100});bars[25].low=94;
+ const z=c.afZoneReplay_(bars,60000,.01,null,true).at(-1).zones.find(z=>z.family==='OB-UP');
+ assert.ok(z);assert.equal(z.lo,90);assert.equal(z.hi,95.5);assert.equal(z.tests,1);assert.equal(z.departed,true);assert.equal(z.knownAt,bars[30].closeTime);
+ assert.equal(c.afZoneReplay_(bars,60000,.01,null,false).at(-1).zones.some(z=>z.family.startsWith('OB')),false);
+});
+test('QML audit activates after the lower Head before the new high pivot is confirmed',()=>{
+ const c=runtime(),t=START-3600000,bars=Array.from({length:45},(_,i)=>({openTime:t+i*60000,closeTime:t+(i+1)*60000,open:100,close:100,high:102,low:98,volume:1}));
+ bars[10].low=90;bars[20].high=110;bars[30].low=85;Object.assign(bars[40],{high:115,low:99,close:112});
+ const z=c.afZoneReplay_(bars,60000,.01,null,false).at(-1).zones.find(z=>z.family==='QML-B');
+ assert.ok(z);assert.equal(z.qmlAudit.headT,bars[30].openTime);assert.equal(z.qmlAudit.activationT,bars[40].closeTime);assert.equal(z.qmlAudit.eventT,bars[40].openTime);assert.equal(z.qmlAudit.complete,true);
+});
 console.log('RESULT '+passed+' test groups passed; synthetic/offline, no live AI/network calls.');
+

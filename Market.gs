@@ -34,3 +34,4 @@ function afLatestKnowable(packets,decisionClose) {
   packets.forEach(function(p){if(Number.isFinite(p.sourceClose)&&Number.isFinite(p.knownAt)&&p.sourceClose<=decisionClose&&p.knownAt<=decisionClose&&p.knownAt>=p.sourceClose&&(!result||p.sourceClose>result.sourceClose))result=p;});
   return result;
 }
+

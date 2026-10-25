@@ -11,3 +11,4 @@ function afRuntimeCheck(){
   auditRuns:(dash.recentRuns||[]).length},sheetUrl:getWorkspaceSheetUrl(),checkedUtc:new Date().toISOString()};
  console.log('AF_RUNTIME_CHECK '+JSON.stringify(report));return report;
 }
+

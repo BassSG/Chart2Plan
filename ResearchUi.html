@@ -1,84 +1,134 @@
 <style>
-.af-research{margin:0 0 24px;padding:22px;border:1px solid #344553;border-radius:14px;background:#131e2b;color:#edf2f7;scroll-margin-top:24px}
-.af-research h3{margin:0 0 8px;font-size:1.15rem}.af-research p{color:#b9c8d8;line-height:1.7;font-size:.88rem;margin:8px 0}
-.af-research-actions{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0}
-.af-research button{font:inherit;font-size:.85rem;padding:10px 14px;border:1px solid #53738e;border-radius:8px;background:#20354a;color:#f5f8fb;cursor:pointer;min-height:44px}
-.af-research button:focus-visible{outline:3px solid #7bd7d1;outline-offset:3px}.af-research button:disabled{opacity:.55;cursor:wait}
-.af-research-output{white-space:pre-wrap;font-size:.86rem;line-height:1.65;color:#d7e5ef;overflow-wrap:anywhere}
-.af-research-metrics{display:flex;flex-wrap:wrap;gap:18px;margin:15px 0}.af-research-metrics span{font-size:.82rem;color:#afc3d5}.af-research-metrics strong{display:block;font-size:1.5rem;color:#ebf5ff;margin-top:3px}
-.af-research-scroll{overflow:auto;max-height:430px;margin-top:12px}.af-research table{border-collapse:collapse;width:100%;font-size:.8rem;text-align:left;min-width:680px}
-.af-research th,.af-research td{padding:10px;border-bottom:1px solid #314357;vertical-align:top}.af-research th{background:#1c2d40;position:sticky;top:0}
-.af-research small{color:#aac0d2}.af-research details{margin-top:16px}.af-research summary{cursor:pointer;min-height:30px}.af-research pre{white-space:pre-wrap;max-height:330px;overflow:auto;font-size:.77rem;overflow-wrap:anywhere}
-@media(max-width:600px){.af-research{padding:16px}.af-research-actions button{flex:1 1 45%}}
+.af-research{margin:0 0 24px;padding:26px;border:1px solid var(--space-border,#344553);border-radius:18px;background:var(--space-panel,#19212d);color:var(--space-text,#edf2f7);box-shadow:var(--premium-shadow,0 14px 35px #0002);scroll-margin-top:24px}
+.af-research *{box-sizing:border-box}.af-research p{margin:0;color:var(--space-muted,#a3b1c7);line-height:1.65}.af-research h3,.af-research h4{margin:0;color:var(--space-text,#edf2f7)}
+.af-research-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}.af-research-kicker{display:block;margin-bottom:6px;color:var(--space-cyan,#62b6ff);font-size:.68rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.af-research-head h3{font-size:1.3rem;line-height:1.3}.af-research-head p{margin-top:7px;max-width:760px;font-size:.85rem}.af-research-mode{flex:none;border:1px solid var(--space-border,#344553);border-radius:999px;padding:7px 10px;color:var(--space-muted,#a3b1c7);font-size:.69rem;font-weight:800;letter-spacing:.07em;white-space:nowrap}
+.af-research-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}.af-research button{font:inherit;font-size:.78rem;font-weight:700;padding:10px 13px;border:1px solid var(--space-border,#53738e);border-radius:9px;background:var(--space-panel-soft,#20354a);color:var(--space-text,#f5f8fb);cursor:pointer;min-height:42px}.af-research button[data-action=inspect]{background:var(--space-cyan,#62b6ff);border-color:var(--space-cyan,#62b6ff);color:var(--space-bg,#10151d)}.af-research button:hover:not(:disabled){filter:brightness(1.12)}.af-research button:focus-visible,.af-research summary:focus-visible{outline:3px solid var(--space-cyan,#62b6ff);outline-offset:3px}.af-research button:disabled{opacity:.55;cursor:wait}
+.af-research-output{border:1px solid var(--space-border,#344553);border-left:4px solid var(--space-cyan,#62b6ff);border-radius:12px;background:var(--space-panel-soft,#1d2838);padding:16px 18px;overflow-wrap:anywhere}.af-research-output[data-kind=pass]{border-left-color:#4bc7a4}.af-research-output[data-kind=wait]{border-left-color:#e7bd6a}.af-research-output[data-kind=error]{border-left-color:#ef8798}.af-status-top{display:flex;align-items:flex-start;gap:13px}.af-status-icon{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:10px;background:#62b6ff22;color:var(--space-cyan,#62b6ff);font-weight:900}.af-research-output[data-kind=pass] .af-status-icon{background:#4bc7a422;color:#4bc7a4}.af-research-output[data-kind=wait] .af-status-icon{background:#e7bd6a22;color:#e7bd6a}.af-status-eyebrow{font-size:.66rem;font-weight:800;letter-spacing:.11em;color:var(--space-muted,#a3b1c7)}.af-status-title{margin:3px 0 2px;font-size:1.06rem;font-weight:800;line-height:1.4;color:var(--space-text,#edf2f7)}.af-status-subtitle{font-size:.78rem}.af-status-meta{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0 0 49px}.af-status-meta span{border:1px solid var(--space-border,#344553);border-radius:999px;padding:5px 9px;color:var(--space-muted,#a3b1c7);font-size:.68rem}.af-status-detail{margin:13px 0 0 49px;font-size:.74rem}
+.af-research-price-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:17px 0}.af-price-card{min-width:0;padding:14px;border:1px solid var(--space-border,#344553);border-radius:11px;background:var(--space-panel-soft,#1d2838)}.af-price-card strong{display:block;margin-top:6px;color:var(--space-text,#edf2f7);font-size:1.36rem;font-variant-numeric:tabular-nums;line-height:1.2}.af-price-card.entry{border-color:var(--space-cyan,#62b6ff)}.af-price-card.entry strong{color:var(--space-cyan,#62b6ff)}.af-price-card small,.af-insight-label{color:var(--space-muted,#a3b1c7);font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.af-research-insights{display:grid;grid-template-columns:2fr 1fr 1fr;gap:9px;margin:0 0 18px}.af-insight{min-width:0;padding:15px;border:1px solid var(--space-border,#344553);border-radius:11px;background:var(--space-panel-soft,#1d2838)}.af-insight.market{border-top:3px solid var(--space-cyan,#62b6ff)}.af-insight.sell{border-top:3px solid #e7bd6a}.af-insight.buy{border-top:3px solid #8fa7c7}.af-insight p{margin-top:8px;font-size:.79rem;line-height:1.65}.af-insight .af-empty{font-style:italic}
+.af-research-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:15px 0}.af-metric{padding:13px 15px;border:1px solid var(--space-border,#344553);border-radius:11px;background:var(--space-panel-soft,#1d2838)}.af-metric span{display:block;color:var(--space-muted,#a3b1c7);font-size:.72rem}.af-metric strong{display:block;margin-top:3px;color:var(--space-text,#edf2f7);font-size:1.3rem;font-variant-numeric:tabular-nums}.af-metric.good strong{color:#4bc7a4}
+.af-research-section-head{display:flex;justify-content:space-between;align-items:end;gap:10px;margin:19px 0 10px}.af-research-section-head h4{font-size:.98rem}.af-research-section-head small{color:var(--space-muted,#a3b1c7);font-size:.72rem}.af-research-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.af-candidate-card{padding:15px;border:1px solid var(--space-border,#344553);border-radius:11px;background:var(--space-panel-soft,#1d2838)}.af-candidate-top{display:flex;justify-content:space-between;align-items:center;gap:6px}.af-side{font-size:.83rem;font-weight:900}.af-side.sell{color:#e7bd6a}.af-side.buy{color:#73c9ff}.af-ready-tag{font-size:.65rem;font-weight:800;color:#4bc7a4}.af-candidate-entry{margin:10px 0;color:var(--space-text,#edf2f7);font-size:1.25rem;font-weight:800;font-variant-numeric:tabular-nums}.af-candidate-entry small{display:block;color:var(--space-muted,#a3b1c7);font-size:.63rem;font-weight:700}.af-candidate-levels{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.af-candidate-levels span{min-width:0;color:var(--space-muted,#a3b1c7);font-size:.65rem}.af-candidate-levels b{display:block;margin-top:2px;color:var(--space-text,#edf2f7);font-size:.78rem;font-variant-numeric:tabular-nums}.af-research-empty{border:1px dashed var(--space-border,#344553);border-radius:10px;padding:17px;color:var(--space-muted,#a3b1c7);font-size:.8rem}
+.af-candidate-card.selected{border-color:var(--space-cyan,#62b6ff);box-shadow:inset 0 0 0 1px var(--space-cyan,#62b6ff)}.af-candidate-card.selected .af-ready-tag{color:var(--space-cyan,#62b6ff)}
+.af-research details{margin-top:12px;border:1px solid var(--space-border,#344553);border-radius:10px;background:var(--space-panel-soft,#1d2838)}.af-research summary{cursor:pointer;padding:12px 14px;color:var(--space-text,#edf2f7);font-size:.76rem;font-weight:750;min-height:42px}.af-research details[open] summary{border-bottom:1px solid var(--space-border,#344553)}.af-research-scroll{overflow:auto;max-height:430px}.af-research table{border-collapse:collapse;width:100%;font-size:.75rem;text-align:left;min-width:680px}.af-research th,.af-research td{padding:10px 12px;border-bottom:1px solid var(--space-border,#344553);vertical-align:top}.af-research th{background:var(--space-panel,#19212d);position:sticky;top:0;z-index:1}.af-research td{color:var(--space-text,#edf2f7)}.af-research td small{display:block;color:var(--space-muted,#a3b1c7);font-size:.65rem;word-break:break-all}.af-research tr.is-eligible{background:#4bc7a40d}.af-research pre{margin:0;padding:14px;white-space:pre-wrap;max-height:330px;overflow:auto;font-size:.7rem;overflow-wrap:anywhere}.af-research-footnote{margin:14px 0 0!important;font-size:.74rem!important}.af-research-paper-title{margin:24px 0 4px!important;font-size:.96rem}.af-research-paper-note{font-size:.74rem!important}
+.af-research-head p{font-size:.92rem}.af-research button{font-size:.85rem}.af-status-title{font-size:1.16rem}.af-status-subtitle{font-size:.85rem}.af-price-card strong{font-size:1.52rem}.af-insight p{font-size:.9rem}.af-metric strong{font-size:1.45rem}.af-side{font-size:.9rem}.af-candidate-entry{font-size:1.4rem}.af-candidate-levels b{font-size:.9rem}.af-research-section-head h4{font-size:1.05rem}
+@media(max-width:950px){.af-research-insights{grid-template-columns:1fr 1fr}.af-insight.market{grid-column:1/-1}.af-research-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.af-research{padding:17px}.af-research-head{display:block}.af-research-mode{display:inline-block;margin-top:11px}.af-research-actions button{flex:1 1 calc(50% - 8px)}.af-research-price-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.af-research-insights,.af-research-cards{grid-template-columns:1fr}.af-insight.market{grid-column:auto}.af-research-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.af-status-meta,.af-status-detail{margin-left:0}.af-research-section-head{align-items:start;flex-direction:column}}
 </style>
 <script>
 (function(){
  'use strict';
- var lastResult=null,busy=false;
+ var lastResult=null,lastAnalysis=null,busy=false;
  var esc=function(v){return String(v==null?'—':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
  var user=function(){return window.AF_SOLO_WORKSPACE&&window.AF_SOLO_WORKSPACE.username;};
  var number=function(v){return typeof v==='number'&&Number.isFinite(v)?String(Math.round(v*10000)/10000):'—';};
- function status(text){document.getElementById('afResearchStatus').textContent=text;}
- function lock(value){busy=value;document.querySelectorAll('#afResearch button[data-action]').forEach(function(b){b.disabled=value;});}
- function fail(){lock(false);status('ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ ยังยืนยันไม่ได้ว่าบันทึกรอบนี้ครบหรือไม่ ตรวจ Run ID ใน Sheet ก่อนรันซ้ำ');}
+ function status(text){var box=document.getElementById('afResearchStatus');box.dataset.kind='neutral';box.innerHTML='<div class="af-status-top"><span class="af-status-icon" aria-hidden="true">i</span><div><div class="af-status-title">'+esc(text)+'</div></div></div>';}
+ function lock(value){busy=value;if(!value&&typeof premiumReleaseWork==='function')premiumReleaseWork('research');
+  if(typeof premiumSyncWorkButtons==='function')premiumSyncWorkButtons();else document.querySelectorAll('#afResearch button[data-action]').forEach(function(b){b.disabled=value;});}
+ function fail(){lock(false);status('ติดต่อเซิร์ฟเวอร์ไม่สำเร็จ ยังยืนยันไม่ได้ว่าบันทึกรอบนี้ครบหรือไม่ ตรวจ Run ID ใน Sheet ก่อนรันซ้ำ');document.getElementById('afResearchStatus').dataset.kind='error';}
+ function side(v){return v===1||v==='BUY'?'BUY':v===-1||v==='SELL'?'SELL':'—';}
+ function geometry(c){return c.geom||c.plan||c.geometry||c;}
+ function levels(c){
+  var p=geometry(c),pick=function(a,b){return a==null?b:a;};
+  var target=pick(pick(p.tp,p.target),pick(c.tp,c.target));
+  if(target==null&&Array.isArray(c.targets)&&c.targets.length)target=pick(c.targets[0].tp,c.targets[0].target);
+  return {entry:pick(p.entry,c.entry),stop:pick(pick(p.sl,p.stop),pick(c.sl,c.stop)),target:target,netR:pick(p.netRR,pick(c.netR,c.netRR))};
+ }
+ function metric(label,value,good){return '<div class="af-metric'+(good?' good':'')+'"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong></div>';}
+ function notes(message){
+  var lines=String(message||'').split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+  var buy=lines.find(function(s){return /^BUY\s*:/i.test(s);})||'';
+  var sell=lines.find(function(s){return /^SELL\s*:/i.test(s);})||'';
+  var market=lines.filter(function(s){return !/^(📈|BUY\s*:|SELL\s*:|TypeOrder\s*:|Entry\s*:|StopLoss\s*:|TP1\s*:|Model\s*:|Cost\s*:|Run ID\s*:|NO_TRADE|แผนจำลองผ่านเงื่อนไข|คะแนนหลักฐานไม่ใช่|แผนเปิดถูกบันทึกแล้ว)/i.test(s);}).join(' ');
+  return {market:market,buy:buy.replace(/^BUY\s*:\s*/i,''),sell:sell.replace(/^SELL\s*:\s*/i,'')};
+ }
+ function insight(label,text,kind){return '<div class="af-insight '+kind+'"><div class="af-insight-label">'+label+'</div><p'+(text?'':' class="af-empty"')+'>'+esc(text||'ไม่มีคำอธิบายเพิ่มเติมในรอบนี้')+'</p></div>';}
+ function resultStatus(v,x){
+  var box=document.getElementById('afResearchStatus'),ready=v.status==='PAPER_SIGNAL_READY'&&v.success===true&&v.plan;
+  var checked=x.diagnostics.candidateCount==null?x.candidates.length:x.diagnostics.candidateCount;
+  var passed=x.diagnostics.eligibleCount==null?x.eligible:x.diagnostics.eligibleCount;
+  var kind=ready?'pass':v.status==='DIAGNOSTICS_READY'&&passed>0?'pass':['DIAGNOSTICS_READY','NO_TRADE','DATA_BUSY'].indexOf(v.status)>=0?'wait':'error';
+  var title=ready?'พบแผนจำลองที่ผ่านเงื่อนไข':v.status==='DIAGNOSTICS_READY'?(passed?'พบ '+passed+' แผนที่ผ่านกฎ':'ยังไม่มีแผนที่ผ่านกฎ'):v.status==='DATA_BUSY'?'ระบบกำลังตรวจคำขออื่น':v.status==='NO_TRADE'?'รอบนี้ยังไม่มีแผนให้เข้า':v.status==='SAVE_FAILED_OR_PARTIAL'?'ต้องตรวจสอบการบันทึก':'ยังยืนยันผลรอบนี้ไม่ได้';
+  var subtitle=ready?'ระบบบันทึกแผนจำลองแล้ว · ยังไม่ใช่คำสั่งเทรดจริง':v.status==='DIAGNOSTICS_READY'?'ตรวจ '+checked+' แผน · ไม่เรียก AI':v.status==='DATA_BUSY'?'รอบนี้ยังไม่ได้ตรวจแผน ลองกดตรวจอีกครั้ง':'ดูรหัสผลในข้อมูลรอบวิเคราะห์';
+  var p=v.plan||{},n=notes(v.message),trade=ready?side(p.side)+' LIMIT · XAU/USD':'Allindy × EBW-Fibo';
+  var label=ready?'สัญญาณพร้อม':v.status==='DIAGNOSTICS_READY'?'ผลตรวจเงื่อนไข':v.status==='NO_TRADE'?'ยังไม่มีแผน':'ผลการตรวจ';
+  box.dataset.kind=kind;
+  box.innerHTML='<div class="af-status-top"><span class="af-status-icon" aria-hidden="true">'+(ready||passed&&kind==='pass'?'✓':kind==='error'?'!':'·')+'</span><div><div class="af-status-eyebrow">'+esc(label)+'</div><div class="af-status-title">'+esc(title)+'</div><p class="af-status-subtitle">'+esc(subtitle)+'</p></div></div>'+
+   '<div class="af-status-meta"><span>'+esc(trade)+'</span><span>PAPER / TEST</span>'+(ready&&v.qcResult&&Number.isFinite(v.qcResult.percentage)?'<span>คะแนนหลักฐาน '+number(v.qcResult.percentage)+' / เกณฑ์ '+number(v.qcResult.threshold)+'</span>':'')+(ready&&p.evidence&&p.evidence.dayTradeRules?'<span>Pending '+esc(p.evidence.dayTradeRules.pendingMinutes)+' นาที</span><span>ถือสูงสุด '+esc(p.evidence.dayTradeRules.maxHoldMinutes)+' นาที</span>':'')+'</div>'+
+   (v.runId?'<details class="af-status-detail"><summary>ข้อมูลรอบวิเคราะห์</summary><p>Run ID: '+esc(v.runId)+'</p>'+(v.status!=='PAPER_SIGNAL_READY'&&v.message?'<p>รหัสผล: '+esc(v.message)+'</p>':'')+'</details>':'');
+  document.getElementById('afResearchPlan').innerHTML=ready?'<div class="af-research-price-grid">'+
+   '<div class="af-price-card entry"><small>ENTRY · '+esc(side(p.side))+' LIMIT</small><strong>'+number(p.entry)+'</strong></div>'+
+   '<div class="af-price-card"><small>STOP LOSS</small><strong>'+number(p.stop)+'</strong></div>'+
+   '<div class="af-price-card"><small>TAKE PROFIT</small><strong>'+number(p.target)+'</strong></div>'+
+   '<div class="af-price-card"><small>NET R/R</small><strong>'+number(p.netR)+':1</strong></div></div>'+
+   '<div class="af-research-insights">'+insight('มุมมองตลาด',n.market,'market')+insight('เหตุผลฝั่ง BUY',n.buy,'buy')+insight('เหตุผลฝั่ง SELL',n.sell,'sell')+'</div>':'';
+ }
  function summarize(v){
   var a=v.audit||{},d=v.diagnostics||a.diagnostics||{},cs=a.candidates||v.candidates||[];
   var eligible=cs.filter(function(c){return c.accepted===true||c.eligible===true||c.decision==='ELIGIBLE';}).length;
   return {audit:a,diagnostics:d,candidates:cs,eligible:eligible};
  }
  function render(v){
-  lastResult=v;var x=summarize(v);
-  status([v.status||v.decision||x.audit.reasonCode||'ผลตรวจ',v.message||v.reason||'',(v.runId||x.audit.runId)?'Run ID: '+(v.runId||x.audit.runId):''].filter(Boolean).join('\n'));
-  document.getElementById('afResearchMetrics').innerHTML='<span>แผนที่ประเมิน<strong>'+esc(x.candidates.length)+'</strong></span>'+
-   '<span>ผ่านกฎ / รอ AI เลือก<strong>'+esc(x.diagnostics.eligibleCount==null?x.eligible:x.diagnostics.eligibleCount)+'</strong></span>'+
-   '<span>เกณฑ์ความถี่<strong>1–5 / วัน</strong></span><span>การยืนยันผล<strong>PAPER เท่านั้น</strong></span>';
-  var rows=x.candidates.slice(0,60).map(function(c){
-   var p=c.plan||c.geometry||c,g=c.gates||c.gateCodes||c.checks||c.failures||c.reasons||[];
+  lastResult=v;lastAnalysis=v;var x=summarize(v);
+  resultStatus(v,x);
+  var checked=x.diagnostics.candidateCount==null?x.candidates.length:x.diagnostics.candidateCount,passed=x.diagnostics.eligibleCount==null?x.eligible:x.diagnostics.eligibleCount;
+  var evaluated=v.status==='DIAGNOSTICS_READY'||x.candidates.length>0;
+  document.getElementById('afResearchMetrics').innerHTML=evaluated?metric('แผนที่ตรวจ',checked)+metric('ผ่านกฎ',passed,true)+metric('ไม่ผ่าน / รอตรวจ',Math.max(0,checked-passed)):'';
+  var selected=x.audit.selectedCandidateId||null;
+  var ordered=x.candidates.slice().sort(function(a,b){return Number(!!selected&&b.id===selected)-Number(!!selected&&a.id===selected)||Number(b.eligible===true||b.accepted===true)-Number(a.eligible===true||a.accepted===true);});
+  var winners=ordered.filter(function(c){return c.eligible===true||c.accepted===true;}).slice(0,3);
+  var cards=winners.map(function(c){var p=levels(c),s=side(c.side||geometry(c).side),chosen=!!selected&&c.id===selected;return '<article class="af-candidate-card'+(chosen?' selected':'')+'"><div class="af-candidate-top"><span class="af-side '+s.toLowerCase()+'">'+esc(s)+' LIMIT</span><span class="af-ready-tag">'+(chosen?'★ AI เลือกแล้ว':'✓ ผ่านกฎ · ยังไม่ใช่การเลือกโดย AI')+'</span></div><div class="af-candidate-entry"><small>ENTRY</small>'+number(p.entry)+'</div><div class="af-candidate-levels"><span>SL<b>'+number(p.stop)+'</b></span><span>TP<b>'+number(p.target)+'</b></span><span>NET R<b>'+number(p.netR)+'</b></span></div></article>';}).join('');
+  var rows=ordered.slice(0,60).map(function(c){var p=levels(c),s=side(c.side||geometry(c).side),ok=c.eligible===true||c.accepted===true,g=c.gateCodes||c.gates||c.checks||c.failures||c.reasons||[];
    var failures=Array.isArray(g)?g.filter(function(q){return typeof q==='string'||q.passed===false||q.pass===false||q.ok===false;}):[g];
-   var reason=failures.map(function(q){return typeof q==='string'?q:String(q.code||q.reason||q.name||JSON.stringify(q));}).join(' · ');
-   return '<tr><td>'+esc(c.id||c.candidateId||'—')+'</td><td>'+esc(p.side===1?'BUY':p.side===-1?'SELL':p.side||'—')+'</td>'+
-    '<td>'+number(p.entry)+'</td><td>'+number(p.stop==null?p.sl:p.stop)+'</td><td>'+number(p.target==null?p.tp:p.target)+'</td>'+
-    '<td>'+number(p.netR)+'</td><td>'+esc(reason||(c.accepted||c.eligible?'ผ่านกฎแผนจำลอง':'ดูรายละเอียด JSON'))+'</td></tr>';
+   var reason=failures.map(function(q){return typeof q==='string'?q:String(q.code||q.reason||q.name||'เงื่อนไขไม่ผ่าน');}).join(' · ');
+   return '<tr'+(ok?' class="is-eligible"':'')+'><td><strong>'+esc(s)+'</strong><small>'+esc(c.id||c.candidateId||'—')+'</small></td><td>'+number(p.entry)+'</td><td>'+number(p.stop)+'</td><td>'+number(p.target)+'</td><td>'+number(p.netR)+'</td><td>'+esc(ok?'ผ่านกฎ · รอ AI เลือก':reason||'ไม่ผ่านเงื่อนไข')+'</td></tr>';
   }).join('');
-  document.getElementById('afResearchCandidates').innerHTML=rows?'<p>แสดง '+Math.min(60,x.candidates.length)+' จาก '+x.candidates.length+' แผน · ราคาไม่ใช่คำสั่งเทรดจริง</p><div class="af-research-scroll"><table><thead><tr><th>Candidate</th><th>ฝั่ง</th><th>Entry</th><th>SL</th><th>TP</th><th>Net R</th><th>เหตุผลที่ไม่ผ่าน</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>ยังไม่มีคู่หลักฐานให้สร้างแผน หรือข้อมูลรอบนี้ไม่พร้อม ไม่ใช่ผลแพ้/ชนะของกลยุทธ์</p>';
-  document.getElementById('afResearchJson').textContent=JSON.stringify({status:v.status,runId:v.runId,diagnostics:x.diagnostics,candidates:x.candidates,coverage:a.coverage||a.snapshot&&a.snapshot.coverage},null,2);
+  document.getElementById('afResearchCandidates').innerHTML=evaluated?'<div class="af-research-section-head"><h4>แผนที่ผ่านกฎ</h4><small>ผ่านกฎคำนวณ · ยังไม่ใช่คำสั่งเทรด</small></div>'+
+   (cards?'<div class="af-research-cards">'+cards+'</div>':'<div class="af-research-empty">รอบนี้ยังไม่มีแผนที่ผ่านกฎ ตรวจรายละเอียดด้านล่างได้</div>')+
+   (rows?'<details><summary>ดูแผนที่ตรวจทั้งหมด · แสดง '+Math.min(60,x.candidates.length)+' จาก '+x.candidates.length+' แผน</summary><div class="af-research-scroll"><table><thead><tr><th>ฝั่ง / รหัส</th><th>Entry</th><th>SL</th><th>TP</th><th>Net R</th><th>ผลตรวจ</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>':''):'<div class="af-research-empty">ยังไม่มีผลตรวจแผนในรอบนี้</div>';
+  document.getElementById('afResearchJson').textContent=JSON.stringify({status:v.status,runId:v.runId,diagnostics:x.diagnostics,preview:x.candidates.slice(0,10).map(function(c){return {id:c.id,side:c.side,eligible:c.eligible,gateCodes:c.gateCodes};})},null,2);
  }
  function renderDashboard(v){
   lastResult=v;var c=v.counts||v.summary||v,t=v.today||{};
   var val=function(k){return c[k]==null?'—':c[k];};
-  document.getElementById('afResearchPaper').innerHTML='<div class="af-research-metrics">'+[
-   ['Entry จำลอง',val('Entry')],['TP จำลอง',val('TP1')],['SL จำลอง',val('SL')],['ต้องตรวจลำดับแท่ง',c.Review==null?c.REVIEW==null?'—':c.REVIEW:c.Review],
-   ['Entry วันนี้ (กรุงเทพฯ)',t.entries==null?'—':t.entries]
-  ].map(function(x){return '<span>'+esc(x[0])+'<strong>'+esc(x[1])+'</strong></span>';}).join('')+'</div>';
+  document.getElementById('afResearchPaper').innerHTML='<div class="af-research-metrics">'+
+   metric('เข้าแผนจำลอง',val('Entry'))+metric('ถึงเป้า TP',val('TP1'))+metric('ถึงจุดตัดขาดทุน',val('SL'))+
+   metric('ปิดครบเวลา',val('TIME_EXIT'))+metric('ต้องตรวจลำดับแท่ง',c.Review==null?c.REVIEW==null?'—':c.REVIEW:c.Review)+
+   metric('เข้าแผนวันนี้',t.entries==null?'—':t.entries)+'</div>';
   document.getElementById('afResearchPaperDetail').textContent=JSON.stringify(v,null,2);
-  status(v.message||'โหลดข้อมูลบันทึกแล้ว · ผลจากแท่ง Bid + สมมติฐาน spread ไม่ใช่ Fill จากโบรกเกอร์');
+  document.getElementById('afResearchDashboardStatus').textContent=v.message||'โหลดประวัติจากเซิร์ฟเวอร์แล้ว · ผลจำลองจากแท่ง Bid และสมมติฐาน spread';
+  if(lastAnalysis)resultStatus(lastAnalysis,summarize(lastAnalysis));else status('โหลดประวัติจากเซิร์ฟเวอร์แล้ว · กดตรวจเงื่อนไขเพื่อดูแผนรอบใหม่');
  }
  function rpc(action){
-  if(busy)return;lock(true);status('กำลังตรวจข้อมูลและบันทึกผล… ไม่มีการเรียก AI สำหรับปุ่มนี้');
+  if(busy)return;
+  if(typeof premiumAcquireWork==='function'&&!premiumAcquireWork('research',action==='inspect'?'ตรวจเงื่อนไข':action==='refresh'?'อัปเดตผลแผนจำลอง':'โหลดประวัติแผน')){status(premiumWorkMessage());return;}
+  lock(true);status('กำลังตรวจข้อมูลและบันทึกผล… ไม่มีการเรียก AI สำหรับปุ่มนี้');
   var done=function(v){lock(false);if(action==='inspect')render(v);else renderDashboard(v);};
+  try{
   var run=google.script.run.withSuccessHandler(done).withFailureHandler(fail);
   if(action==='inspect'){
    var tf=document.getElementById('tradeType').value,auto=document.getElementById('dynamicQcToggle').checked;
    run.afResearchDiagnostics(tf,'XAUUSD',auto?null:Number(document.getElementById('qcLevel').value));
   }else if(action==='refresh')run.afRefreshPaper(user());
   else run.afResearchDashboard(user());
+  }catch(error){fail();}
  }
  function mount(){
   var grid=document.querySelector('.space-analysis-grid');if(!grid)return;
-  var section=document.createElement('section');section.id='afResearch';section.className='af-research';section.setAttribute('aria-labelledby','afResearchTitle');
-  section.innerHTML='<h3 id="afResearchTitle">ห้องพิสูจน์แผน · All Indy × EBW-Fibo</h3>'+
-   '<p>คำนวณ Entry / SL / TP จากหลักฐานก่อนให้ AI เลือกและอธิบาย คะแนน QC เป็นคะแนนหลักฐาน ไม่ใช่โอกาสชนะ เป้าหมาย 1–5 Entry ต่อวันใช้วัดผล ไม่บังคับสร้างไม้ให้ครบ</p>'+
+  var section=document.createElement('details');section.id='afResearch';section.className='af-research';section.setAttribute('aria-labelledby','afResearchTitle');
+  section.innerHTML='<summary class="c2p-lab-summary"><span><i class="fas fa-sliders" aria-hidden="true"></i><strong>ตรวจด้วยกฎและดูหลักฐาน</strong><small>ส่วนนี้ไม่เรียก AI · เปิดเมื่อต้องการตรวจเชิงลึก</small></span><span class="c2p-lab-toggle">เปิด / พับ</span></summary><div class="c2p-lab-body"><div class="af-research-head"><div><span class="af-research-kicker">RULE CHECK · ไม่เรียก AI</span><h3 id="afResearchTitle">แผนที่ผ่านกฎคำนวณ</h3>'+
+   '<p>ใช้ตรวจโซนและตัวเลขด้วย Allindy × Fibo เท่านั้น หากต้องการให้ AI เลือกแผน ให้ใช้ปุ่มวิเคราะห์ด้านบน</p></div><span class="af-research-mode">PAPER / TEST</span></div>'+
    '<div class="af-research-actions"><button type="button" data-action="inspect">ตรวจเงื่อนไข · ไม่เรียก AI</button><button type="button" data-action="refresh">อัปเดตผลแผนจำลอง</button><button type="button" data-action="dashboard">โหลดประวัติจากเซิร์ฟเวอร์</button><button type="button" id="afResearchExport">ดาวน์โหลดผลตรวจ JSON</button><button type="button" id="afResearchSheet">เปิด Logs ใน Sheet</button></div>'+
-   '<div id="afResearchStatus" class="af-research-output" role="status" aria-live="polite">ยังไม่ได้ตรวจในรอบนี้ · กดตรวจเงื่อนไขได้โดยไม่มีค่าเรียกโมเดล</div>'+
+   '<div id="afResearchStatus" class="af-research-output" role="status" aria-live="polite"><div class="af-status-top"><span class="af-status-icon" aria-hidden="true">i</span><div><div class="af-status-title">พร้อมตรวจแผน</div><p class="af-status-subtitle">กด “ตรวจเงื่อนไข” ได้โดยไม่เรียก AI</p></div></div></div><div id="afResearchPlan"></div>'+
    '<div id="afResearchMetrics" class="af-research-metrics"></div><div id="afResearchCandidates"></div>'+
-   '<details><summary>หลักฐานและเหตุผลราย Candidate</summary><pre id="afResearchJson"></pre></details>'+
-   '<h4>ผลแผนจำลองที่บันทึกไว้</h4><div id="afResearchPaper"><p>ยังไม่ได้โหลดข้อมูล ไม่แสดง 0 แทนข้อมูลที่ยังไม่ทราบ</p></div>'+
-   '<p>แผนจำลองเริ่มต้นนาทีเต็มถัดไป ไม่ย้อนหลังนับนาทีที่สร้างแผน · อัปเดตเฉพาะเมื่อกดปุ่ม ไม่ได้ติดตามอยู่เบื้องหลัง หากประวัติขาดช่วงหรือแท่งเดียวแตะหลายระดับ จะขึ้น REVIEW และไม่นับเป็น TP แผนที่เข้าแล้วจะล็อก Entry / SL / TP</p>'+
-   '<details><summary>ประวัติรอบตรวจและสถานะแผนบนเซิร์ฟเวอร์</summary><pre id="afResearchPaperDetail"></pre></details>';
-  grid.parentNode.insertBefore(section,grid);
+   '<details><summary>ดูหลักฐานตัวอย่าง 10 แผน · ดาวน์โหลด JSON เพื่อดูทั้งหมด</summary><pre id="afResearchJson"></pre></details>'+
+   '<h4 class="af-research-paper-title">ผลแผนจำลองที่บันทึกไว้</h4><p class="af-research-paper-note" id="afResearchDashboardStatus">ยังไม่ได้โหลดประวัติจากเซิร์ฟเวอร์</p><div id="afResearchPaper"><div class="af-research-empty">กด “โหลดประวัติจากเซิร์ฟเวอร์” เพื่อดูสถานะที่บันทึกไว้</div></div>'+
+   '<p class="af-research-footnote">แผนจำลองเริ่มนาทีเต็มถัดไปและอัปเดตเมื่อกดปุ่มเท่านั้น · ข้อมูลไม่ครบหรือไม่รู้ลำดับแท่งจะแสดง REVIEW · คะแนน QC ไม่ใช่โอกาสชนะ</p>'+
+   '<details><summary>ประวัติรอบตรวจและสถานะแผนบนเซิร์ฟเวอร์</summary><pre id="afResearchPaperDetail"></pre></details></div>';
+  var host=document.getElementById('c2pResearchHost');if(host)host.appendChild(section);else grid.parentNode.insertBefore(section,grid.nextSibling);
   Array.from(document.getElementById('symbol').options).forEach(function(o){if(o.value.replace('/','')!=='XAUUSD'){o.disabled=true;o.textContent+=' · ยังไม่มีข้อมูลยืนยัน';}});
   Array.from(document.getElementById('qcLevel').options).forEach(function(o){o.textContent=o.textContent.replace('%',' คะแนน');});
   section.querySelectorAll('button[data-action]').forEach(function(b){b.addEventListener('click',function(){rpc(b.dataset.action);});});
+  if(typeof premiumSyncWorkButtons==='function')premiumSyncWorkButtons();
   document.getElementById('afResearchExport').addEventListener('click',function(){
    if(!lastResult){status('ยังไม่มีผลตรวจสำหรับดาวน์โหลด');return;}
    var blob=new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -96,3 +146,4 @@
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount);else mount();
 })();
 </script>
+

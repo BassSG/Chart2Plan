@@ -915,6 +915,7 @@ function performAnalysis () {
  
   const options={tradeType,symbol,model:modelSel,dynamicQc,qcLevel:qcToSend};
   const request=premiumStartRun(options);
+  if(request===null)return;
   try {
     google.script.run
       .withSuccessHandler(function(response) {
@@ -1218,12 +1219,15 @@ async function copyResult (){
     function loadTriggers() {
       const currentUser = localStorage.getItem('af.currentUser');
       if (!currentUser) return;
+      if(!premiumAcquireWork('alerts','โหลดสถานะแผน'))return;
+      const releaseAlerts=()=>premiumReleaseWork('alerts');
 
       const tableBody = document.querySelector('#triggersTable tbody');
       tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;"><div class="loading" style="border-top-color: var(--primary-color-light);"></div> กำลังโหลดข้อมูล...</td></tr>`;
 
-      google.script.run
+      try {google.script.run
         .withSuccessHandler(function(response) {
+          releaseAlerts();
           tableBody.innerHTML = '';
           if (response.success) {
             const triggers = response.triggers.filter(trigger => ['Active', 'Review'].includes(trigger.status));
@@ -1269,12 +1273,14 @@ async function copyResult (){
           }
         })
         .withFailureHandler(function(error) {
+          releaseAlerts();
           console.error("Load Triggers Error:", error);
           document.getElementById('premiumAlertCount').textContent = 'โหลดไม่สำเร็จ';
           tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">เกิดข้อผิดพลาด: ${premiumEscape(error.message)}</td></tr>`;
           Swal.fire('ผิดพลาดรุนแรง', 'เกิดข้อผิดพลาดในการดึงข้อมูล Trigger: ' + error.message, 'error');
         })
         .manageTriggers('getAll', currentUser);
+      }catch(error){releaseAlerts();tableBody.innerHTML='<tr><td colspan="7">ยังโหลดสถานะแผนไม่ได้ กรุณาลองใหม่</td></tr>';}
     }
 
     function confirmDeleteAllTriggers() {
@@ -1641,54 +1647,6 @@ function checkEmojiSupport() {
   }
 }
 
-/* ===== เปิด / โหลด SnD Forex ===== */
-function showSnDForex(){
-  const container = document.getElementById('sndIframeContainer');
-  const iframe     = document.getElementById('sndIframe');
-  const loader     = document.getElementById('sndLoader');
-
-  // ถ้ายังไม่เคยแสดง -> เปิดและตั้ง src
-  if (container.style.display === 'none'){
-    container.style.display = 'block';
-
-    // ตั้ง src เมื่อผู้ใช้คลิกครั้งแรกเท่านั้น
-    if (iframe.src === 'about:blank'){
-      iframe.src = iframe.dataset.src;
-      // เมื่อโหลดเสร็จให้ซ่อน loader
-      iframe.addEventListener('load', () => {
-        loader.classList.add('hide');          // ใช้คลาส hide เดิม
-      }, { once:true });
-    }
-  }
-
-  // เลื่อนหน้าจอแบบ smooth ไปยังเฟรม
-  container.scrollIntoView({ behavior:'smooth', block:'start' });
-}
-/* ===== ฟังก์ชันเลื่อนและโหลด Dashboard ===== */
-function scrollToDashboard() {
-  const container = document.getElementById('dashboardContainer');
-  const iframe    = document.getElementById('dashboardIframe');
-  const loader    = container ? container.querySelector('.dashboard-loader') : null;
-
-  if (!container || !iframe) return;
-
-  /* ---------- เปิด container หากยังซ่อน ---------- */
-  if (container.style.display === 'none') {
-    container.style.display = 'block';
-
-    /* lazy-load – ตั้ง src ครั้งแรกเท่านั้น */
-    if (iframe.src === 'about:blank') {
-      iframe.src = iframe.dataset.src;
-      iframe.addEventListener('load', () => {
-        if (loader) loader.classList.add('hide');   // ซ่อนตัวโหลดเมื่อเสร็จ
-      }, { once: true });
-    }
-  }
-
-  /* ---------- เลื่อนหน้าจออย่างนุ่มนวล ---------- */
-  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
 function showGoogleSheet () {
   const container = document.getElementById('gsIframeContainer');
   const loader    = document.getElementById('gsLoader');
@@ -1781,6 +1739,7 @@ if (dynamicQcToggle && qcLevelSelect) {
 function spaceNavigate(id) {
   const target = document.getElementById(id);
   if (!target) return;
+  if(target.tagName==='DETAILS')target.open=true;
   document.querySelectorAll('.space-nav-item[data-section]').forEach(function(button) {
     const active = button.dataset.section === id;
     button.classList.toggle('is-active', active);
@@ -1800,6 +1759,7 @@ document.getElementById('symbol').addEventListener('change',function() {
   
 // Independent-workspace versions of the original navigation actions.
 function navigateToAI(){spaceNavigate('analysisSettings');}
-function navigateToFWT(){scrollToDashboard();}
+
 function showDeleteUserPanel(){const user=window.AF_SOLO_WORKSPACE.username;Swal.fire({title:'ล้างข้อมูลทดสอบ',text:'ล้างประวัติและแผนจำลองของผู้ทดสอบใน Sheet ใหม่อย่างถาวร',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันล้างข้อมูลทดสอบ',cancelButtonText:'ยกเลิก'}).then(r=>{if(!r.isConfirmed)return;google.script.run.withSuccessHandler(v=>{Swal.fire(v.success?'สำเร็จ':'ดำเนินการไม่ได้',v.message,v.success?'success':'error');if(v.success){analysisHistory=[];premiumPersistHistory();premiumResetResult();loadTriggers();}}).withFailureHandler(e=>Swal.fire('ผิดพลาด',e.message,'error')).afDeleteOwnData(user,'DELETE_MY_TEST_DATA');});}
 </script>
+

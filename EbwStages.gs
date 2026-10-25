@@ -79,3 +79,4 @@ case 6:return s.kdUp5 ? 7 : 6;
 case 7:return s.kDown80_5 ? 8 : 7;
 case 8:return s.m1.k > 80 && s.m1.rsi > 70 ? 9 : 8;
 default:return stage;}}
+

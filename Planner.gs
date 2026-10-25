@@ -2,8 +2,8 @@
  * Policy below is admission policy, not source strategy or win probability.
  * Entry midpoint; structural stop + source-TF ATR buffer; risk uses execution ATR.
  * No bar-index comparisons across TF. All recognition/source times are UTC ms. */
-var AF_PLANNER_POLICY = Object.freeze({version:'AF-PLANNER-1.1-EXPERIMENTAL',tick:0.01,minNetR:1.5,
- minRiskATR:0.75,maxRiskATR:2.5,bufferZoneATR:0.18,anchorSearchATR:1.5,sweepBandATR:0.6,sweepBufferATR:0.25,maxWidthZoneATR:2.5,
+var AF_PLANNER_POLICY = Object.freeze({version:'AF-PLANNER-1.3-PINE-BOOK-LATCH',tick:0.01,minNetR:1.5,minRoomATR:0.75,
+ minRiskATR:0.75,maxRiskATR:2.5,bufferZoneATR:0.15,anchorSearchATR:1.5,sweepBandATR:0.6,sweepBufferATR:0.25,maxWidthZoneATR:2.5,
  maxCostRisk:0.2,extraCost:0.02,maxSnapshotMs:120000,maxQuoteMs:120000,maxEntryDistanceATR:6.0});
 var AF_PLANNER_TF = {'1m':60000,'5m':300000,'15m':900000,'1h':3600000,'4h':14400000,'1d':86400000};
 function afPlannerNum_(x){return typeof x==='number'&&Number.isFinite(x);}
@@ -31,17 +31,17 @@ function afPlannerPick_(row,keys){
 }
 function afPlannerProvenance_(ctx){
  return {source:afPlannerPick_(ctx,['sourceId','symbol']),
-  canonicalSD:{sourceVersion:'All-Indy-1.3.5',adapter:'afZoneReplay_',adapterFile:'Allindy.gs',adapterVersion:null},
+  canonicalSD:{sourceVersion:'All-Indy-1.3.5',adapter:'afZoneReplay_',adapterFile:'Allindy.gs',adapterVersion:'AF-ZONE-1.3.5-PORT-0.2'},
   normalFibo:{sourceVersion:'EBW-Fibo-1.10.19',adapter:'afFiboReplay_',adapterFile:'Fibo.gs',adapterVersion:'AF-FORM-CONTEXT-0.2'},
   policy:afPlannerPick_(AF_PLANNER_POLICY,['version','tick','minNetR','minRiskATR','maxRiskATR','bufferZoneATR',
    'anchorSearchATR','sweepBandATR','sweepBufferATR','maxWidthZoneATR','maxCostRisk','extraCost','maxSnapshotMs','maxQuoteMs']),
-  pineParityVerified:false}; // Zone replay has no declared adapter revision; do not invent one.
+  pineParityVerified:false};
 }
 function afPlannerZoneEvidence_(z){return afPlannerPick_(z,['id','tf','tfMs','side','lo','hi','atr','score','tests',
  'knownAt','sourceClose','bornSeq','touching','quality','departure','structure','sweep','pd','clean','source','imbalance',
- 'pattern','sourceVersion','adapter','adapterVersion']);}
+ 'pattern','sourceVersion','adapter','adapterVersion','family','families','familyBit','role','isDefendCore','isLiquidityOnly','tags','historyComplete','departed','sourceSeq','sourceBornSeq']);}
 function afPlannerFiboEvidence_(f){
- var out=afPlannerPick_(f,['id','tf','tfMs','side','symbol','sourceVersion','adapter','adapterVersion','root','zero','span',
+ var out=afPlannerPick_(f,['id','tf','tfMs','side','symbol','sourceVersion','adapter','adapterVersion','root','rootPrice','sourceATR','zero','span','zeroT','legLow','legHigh','asof','status',
   'knownAt','sourceClose','born','method','neck','broken','invalidated','historyComplete','closedT','closedKind','role']);
  out.anchors={};['a','b','c'].forEach(function(k){out.anchors[k]=afPlannerPick_(f.anchors&&f.anchors[k],
   ['p','t','closeT','i','kind','r','k','cycle','knownAt','confirmed','trigger']);});
@@ -112,6 +112,8 @@ function afPlannerContextGate_(ctx,now){
  });return invalid;
 }
 function afPlannerRound_(x,up){return Number(((up?Math.ceil(x/0.01-1e-8):Math.floor(x/0.01+1e-8))*0.01).toFixed(2));}
+function afPlannerNearer_(a,b,entry){return !afPlannerNum_(a)?b:!afPlannerNum_(b)?a:Math.abs(a-entry)<=Math.abs(b-entry)?a:b;}
+function afPlannerLiquidityPrice_(l,side){return side===1&&afPlannerNum_(l.lo)?l.lo:side===-1&&afPlannerNum_(l.hi)?l.hi:l.price;}
 function afPlannerIdentity_(ctx,z,f){
  // Full identity rather than a lossy hash: duplicates cannot hide hash collisions.
  return JSON.stringify([AF_PLANNER_POLICY.version,ctx.sourceId,ctx.symbol,'All-Indy-1.3.5',ctx.executionTF,ctx.contextTF,
@@ -121,47 +123,78 @@ function afPlannerIdentity_(ctx,z,f){
  * Experimental cross-TF policy: source-frame ATR buffers; execution ATR risk floor/cap.
  * Fibo anchor schema (p,t,closeT,i,kind,cycle,confirmed) is retained as evidence only. */
 function afPlannerProtectiveAnchor_(ctx,z){
- var found=[],invalid=false,s=z.side,distal=s===1?z.lo:z.hi,em=AF_PLANNER_TF[ctx.executionTF];
+ var found=[],invalid=false,s=z.side,distal=s===1?z.lo:z.hi,em=AF_PLANNER_TF[ctx.executionTF],chartAtr=Number(ctx.frames[ctx.executionTF].atr);
  Object.keys(ctx.frames).sort().forEach(function(tf){var fr=ctx.frames[tf],ms=AF_PLANNER_TF[tf];
   if(ms<em||ms%em)return;
   if(!Array.isArray(fr.liquidity)){invalid=true;return;}
   fr.liquidity.forEach(function(l){
    if(!l||![1,-1].includes(l.side)||![l.price,l.knownAt].every(afPlannerNum_)||l.price<=0||l.knownAt<=0||l.knownAt>Date.parse(fr.lastClosedUtc)){invalid=true;return;}
-   var gap=s*(distal-l.price);
-   if(l.side===s&&gap>=0&&gap<=z.atr*AF_PLANNER_POLICY.anchorSearchATR)found.push({kind:'MAPPED_LIQUIDITY',tf:tf,
-    price:l.price,knownAt:l.knownAt,sourceATR:fr.atr,gap:gap,source:afPlannerPick_(l,['side','price','knownAt'])});
+   var level=afPlannerLiquidityPrice_(l,s),gap=s*(distal-level);
+   if(l.side===s&&gap>=0&&gap<=chartAtr*AF_PLANNER_POLICY.anchorSearchATR)found.push({kind:'MAPPED_LIQUIDITY',tf:tf,
+    price:level,knownAt:l.knownAt,sourceATR:fr.atr,gap:gap,source:afPlannerPick_(l,['side','price','lo','hi','knownAt'])});
   });
  });
  found.sort(function(a,b){return b.gap-a.gap||b.sourceATR-a.sourceATR||a.tf.localeCompare(b.tf)||a.knownAt-b.knownAt;});
  // If no separate liquidity anchor is mapped behind the zone, fall back to the zone's distal edge (P1 lines 2099, 2216).
- var fallback={kind:'ZONE_DISTAL_FALLBACK',tf:z.tf,price:distal,knownAt:z.knownAt,sourceATR:z.atr,gap:0,source:afPlannerPick_(z,['lo','hi','atr','id'])};
+ var fallback={kind:'ZONE_DISTAL_FALLBACK',tf:z.tf,price:distal,knownAt:z.knownAt,sourceATR:chartAtr,gap:0,source:afPlannerPick_(z,['lo','hi','atr','id'])};
  return {code:invalid?'AF_PROTECTIVE_ANCHOR_DATA_INVALID':null,anchor:found[0]||fallback};
 }
-/* Closed-bar execution safety, NOT a port of the source lifecycle. Do not mutate
- * source book/hitRatios. Gaps (including sessions without calendar proof) are UNKNOWN.
- * No assertion about the still-open candle or unobserved intrabar order is made. */
+/* EBW relation: equal direction alone is code 5 and is never a pair. A zone must
+ * be knowable after C, stay on the safe side of zero, and sit inside the frozen leg. */
+function afPlannerZoneFiboRelation_(ctx,z,f){
+ var side=Number(z.side),zeroT=Number(f.zeroT||f.anchors&&f.anchors.c&&f.anchors.c.t),zero=Number(f.zero),a=f.anchors||{},prices=[a.a&&Number(a.a.p),a.b&&Number(a.b.p),a.c&&Number(a.c.p)].filter(Number.isFinite);
+ var lo=afPlannerNum_(f.legLow)?f.legLow:prices.length?Math.min.apply(null,prices):NaN;
+ var hi=afPlannerNum_(f.legHigh)?f.legHigh:prices.length?Math.max.apply(null,prices):NaN;
+ var tf=ctx.frames&&ctx.frames[f.tf],tol=Math.max(.01,(tf&&Number(tf.atr)||0)*.03),same=side===Number(f.side);
+ if(!same)return {code:5,related:false,reason:'DIRECTION_ONLY'};
+ var zeroHeld=side===1?Number(z.lo)>=zero:Number(z.hi)<=zero;
+ if(!Number.isFinite(zeroT)||Number(z.knownAt)<zeroT)return {code:6,related:false,reason:'ZONE_PRECEDES_FIBO_C'};
+ if(!zeroHeld)return {code:4,related:false,reason:'ZONE_CROSSES_FIBO_ZERO'};
+ var inside=Number(z.lo)>=lo-tol&&Number(z.hi)<=hi+tol;
+ var bookRelated=z.relatedFiboId===f.id||z.fiboId===f.id;
+ return {code:inside||bookRelated?2:4,related:!!(inside||bookRelated),reason:inside?'SAME_LEG_INSIDE_FROZEN_RANGE':bookRelated?'EXPLICIT_BOOK_LINK':'OUTSIDE_FROZEN_RANGE',
+  zeroT:zeroT,zero:zero,legLow:lo,legHigh:hi,tolerance:tol};
+}
+/* Pine's higher-TF source state remains usable while knowable and un-killed.
+ * Recheck lower-TF closed highs/lows since source asof; this latches zero/root/
+ * 5.472 invalidation and carries already-hit extensions into the pending target list. */
 function afPlannerExecutionSafety_(ctx,f,nextTarget,anchor,now){
  var fr=ctx.frames[ctx.executionTF],ms=AF_PLANNER_TF[ctx.executionTF],rows=fr.closedOHLC;
- var out={policy:'EXPERIMENTAL_CLOSED_EXECUTION_SINCE_BIRTH_V1',from:f.born,to:null,barCount:0,
-  coverage:'UNKNOWN',openCandleCovered:false,code:null};
+ var sourceAsOf=Number(f.asof||f.sourceClose),out={policy:'PINE_INTRABAR_KILL_LATCH_CLOSED_BARS_V1',from:sourceAsOf,to:null,barCount:0,
+  coverage:'UNKNOWN',openCandleCovered:false,status:2,code:null,targets:[],hitRatios:[],hitTimes:{}};
  function fail(code){out.code=code;return out;}
  if(!Array.isArray(rows)||!rows.length)return fail('AF_EXECUTION_COVERAGE_MISSING');
  if(rows.length>3000)return fail('AF_EXECUTION_COVERAGE_INVALID');
- var prev=null,bad=false;
+ if(!afPlannerNum_(sourceAsOf)||sourceAsOf<=0||sourceAsOf>ctx.asOf)return fail('AF_FIBO_NOT_KNOWABLE_OR_STALE');
+ var prevStart=0,bad=false;
  rows.forEach(function(b){if(!Array.isArray(b)||b.length<6||!b.slice(0,6).every(afPlannerNum_)||b[0]<=0||b[1]-b[0]!==ms||
-  b[1]>ctx.asOf||b[4]<=0||b[3]<Math.max(b[2],b[4],b[5])||b[4]>Math.min(b[2],b[3],b[5])||prev!==null&&b[0]!==prev)bad=true;
-  if(Array.isArray(b))prev=b[1];});
+  b[1]>ctx.asOf||b[4]<=0||b[3]<Math.max(b[2],b[4],b[5])||b[4]>Math.min(b[2],b[3],b[5])||b[0]<=prevStart)bad=true;
+  if(Array.isArray(b))prevStart=b[0];});
  if(bad)return fail('AF_EXECUTION_COVERAGE_INVALID');
  var last=rows[rows.length-1][1];out.to=last;
- if(last!==Date.parse(fr.lastClosedUtc)||now-last>ms+120000||now<last)return fail('AF_EXECUTION_COVERAGE_STALE');
- if(rows[0][0]>f.born||last<f.knownAt||!rows.some(function(b){return b[0]===f.born;}))return fail('AF_EXECUTION_COVERAGE_INCOMPLETE');
- var bars=rows.filter(function(b){return b[0]>=f.born;});out.barCount=bars.length;out.coverage='COMPLETE_CLOSED_BARS';
- if(bars.some(function(b){return f.side===1?b[4]<f.zero||b[4]<f.root:b[3]>f.zero||b[3]>f.root;}))return fail('AF_EXECUTION_FIBO_BREACHED');
- if(bars.some(function(b){return f.side===1?b[3]>=nextTarget:b[4]<=nextTarget;}))return fail('AF_EXECUTION_TARGET_CONSUMED');
- // Current registry anchor must not have been swept on a later closed execution bar.
+ var marketClosed=ctx.quote&&(ctx.quote.market_status==='closed'||ctx.quote.weekend_test_mode===true||ctx.quote.is_market_open===false);
+ if(last!==Date.parse(fr.lastClosedUtc)||!marketClosed&&now-last>ms+120000||now<last)return fail('AF_EXECUTION_COVERAGE_STALE');
+ if(last<sourceAsOf)return fail('AF_EXECUTION_COVERAGE_INCOMPLETE');
+ var firstAfter=rows.findIndex(function(b){return b[0]>=sourceAsOf;});
+ if(last>sourceAsOf&&(firstAfter<0||rows[firstAfter][0]>sourceAsOf+ms))return fail('AF_EXECUTION_COVERAGE_INCOMPLETE');
+ var bars=rows.filter(function(b){return b[0]>=sourceAsOf;});out.barCount=bars.length;out.coverage='CLOSED_BARS_SINCE_SOURCE_ASOF';
+ if(bars.some(function(b){return f.side===1?b[4]<f.zero||b[4]<Number(f.rootPrice||f.root):b[3]>f.zero||b[3]>Number(f.rootPrice||f.root);}))return fail('AF_EXECUTION_FIBO_BREACHED');
+ if(!Array.isArray(f.targets)||!Array.isArray(f.hitRatios))return fail('AF_FIBO_TARGETS_INVALID');
+ var ratios=[1.618,2,2.618,3.5,4.236,5.472],hits=f.hitRatios.slice(),times=Object.assign({},f.hitTimes||{});
+ var seenTargets={};if(f.targets.length!==6||hits.some(function(r){return !afPlannerNum_(r)||ratios.indexOf(r)<0;})||f.targets.some(function(t){
+  if(!t||!afPlannerNum_(t.ratio)||!afPlannerNum_(t.price)||ratios.indexOf(t.ratio)<0||seenTargets[t.ratio]||Math.abs(t.price-(f.zero+f.span*t.ratio))>.001)return true;seenTargets[t.ratio]=true;return typeof t.pending!=='boolean'||t.pending===(hits.indexOf(t.ratio)>=0);
+ }))return fail('AF_FIBO_TARGETS_INVALID');
+ f.targets.forEach(function(t){var hit=hits.indexOf(t.ratio)>=0,hitAt=t.hitAt;
+  bars.forEach(function(b){var reached=f.side===1?b[3]>=t.price:b[4]<=t.price;if(reached&&!hit){hit=true;hitAt=b[1];if(hits.indexOf(t.ratio)<0)hits.push(t.ratio);times[String(t.ratio)]=b[1];}});
+  out.targets.push({ratio:t.ratio,price:t.price,pending:!hit,hitAt:hitAt===null||hitAt===undefined?(times[String(t.ratio)]||null):hitAt});
+ });
+ if(out.targets.length!==ratios.length||out.targets.some(function(t){return ratios.indexOf(t.ratio)<0;}))return fail('AF_FIBO_TARGETS_INVALID');
+ if(hits.indexOf(5.472)>=0){out.status=3;return fail('AF_FIBO_BOOK_CLOSED_INTRABAR');}
+ out.hitRatios=hits;out.hitTimes=times;out.status=2;
+ // The current registry anchor also participates in the kill latch.
  if(anchor){
-  if(rows[0][0]>anchor.knownAt)return fail('AF_PROTECTIVE_ANCHOR_COVERAGE_INCOMPLETE');
-  if(rows.some(function(b){return b[0]>=anchor.knownAt&&(f.side===1?b[4]<anchor.price:b[3]>anchor.price);}))return fail('AF_PROTECTIVE_ANCHOR_SWEPT');
+  if(anchor.knownAt>last)return fail('AF_PROTECTIVE_ANCHOR_COVERAGE_INCOMPLETE');
+  if(bars.some(function(b){return b[0]>=Math.max(sourceAsOf,anchor.knownAt)&&(f.side===1?b[4]<anchor.price:b[3]>anchor.price);}))return fail('AF_PROTECTIVE_ANCHOR_SWEPT');
  }
  return out;
 }
@@ -179,25 +212,34 @@ function afPlannerCandidate_(ctx,z,f,qc,now){
  if(!zf||!ff||zm<em||fm<em||zm%em||fm%em||z.tfMs!==zm||f.tfMs!==fm)return fail('AF_TF_INCOMPARABLE');
  if(![z.lo,z.hi,z.atr,z.score,z.knownAt,z.tests].every(afPlannerNum_)||z.lo<=0||z.hi<z.lo||z.atr<=0||z.score<0||z.score>100||!Number.isInteger(z.tests)||z.tests<0)return fail('AF_ZONE_INVALID');
  if(z.knownAt<=0||z.knownAt>ctx.asOf||z.knownAt>Date.parse(zf.lastClosedUtc))return fail('AF_ZONE_NOT_KNOWABLE');
+ if(!afZoneIsDefendCore_(z))return fail('AF_ZONE_NOT_DEFEND_CORE');
+ if(z.historyComplete!==true||z.departed!==true)return fail('AF_ZONE_HISTORY_OR_DEPARTURE_UNCONFIRMED');
+ var zoneRole=afZoneRole_(z,z.score);c.evidence.zoneRole=zoneRole;
  if(z.tests>1||z.hi-z.lo>z.atr*AF_PLANNER_POLICY.maxWidthZoneATR)return fail('AF_ZONE_EXHAUSTED_OR_WIDE');
  if(z.score<28)return fail('AF_ZONE_SCORE_LOW');
+ if(!afZoneDirectLimitOK_(z))return fail('AF_ZONE_DIRECT_LIMIT_NOT_ALLOWED');
  if(f.sourceVersion!=='EBW-Fibo-1.10.19'||f.adapterVersion!=='AF-FORM-CONTEXT-0.2'||f.symbol!==ctx.symbol)return fail('AF_FIBO_SOURCE_UNVERIFIED');
  if(![f.zero,f.span,f.root,f.knownAt,f.sourceClose,f.born].every(afPlannerNum_)||f.zero<=0||f.root<=0||s*f.span<=0||
  f.broken!==true||f.invalidated!==false||f.historyComplete!==true||![1,3].includes(f.method)||!afBookActive_(f))return fail('AF_FIBO_INVALID');
+ if(f.status!==undefined&&f.status!==2)return fail('AF_FIBO_INVALID');
  if(f.method===3&&ctx.coverage.NeckDivergence!=='computed')return fail('AF_MODULE_UNAVAILABLE');
- if(f.born<=0||f.born>f.knownAt||f.knownAt>f.sourceClose||f.sourceClose>Date.parse(ff.lastClosedUtc)||ctx.asOf-f.sourceClose>fm+120000)return fail('AF_FIBO_NOT_KNOWABLE_OR_STALE');
+ var executionClose=Date.parse(exec.lastClosedUtc),sourceAsOf=Number(f.asof||f.sourceClose);
+ if(f.born<=0||f.born>f.knownAt||f.knownAt>f.sourceClose||f.sourceClose>ctx.asOf||f.sourceClose>Date.parse(ff.lastClosedUtc)||
+  !afPlannerNum_(sourceAsOf)||sourceAsOf<f.knownAt||sourceAsOf>f.sourceClose||sourceAsOf>executionClose||sourceAsOf>ctx.asOf)return fail('AF_FIBO_NOT_KNOWABLE_OR_STALE');
+ var relation=afPlannerZoneFiboRelation_(ctx,z,f);c.evidence.fiboRelation=relation;
+ if(!relation.related||![1,2].includes(relation.code))return fail(relation.code===5?'AF_FIBO_DIRECTION_ONLY_NOT_RELATED':'AF_FIBO_RELATION_INVALID');
  if(s===1?ctx.quote.bid<f.zero||ctx.quote.bid<f.root:ctx.quote.ask>f.zero||ctx.quote.ask>f.root)return fail('AF_FIBO_BREACHED');
- c.entry=afPlannerRound_((z.lo+z.hi)/2,s===-1);
  var protection=afPlannerProtectiveAnchor_(ctx,z);c.evidence.protectiveAnchor=protection.anchor;
  if(protection.code)return fail(protection.code);
- var anchor=protection.anchor,sourceATR=Math.max(z.atr,anchor.sourceATR),near=anchor.gap<=z.atr*AF_PLANNER_POLICY.sweepBandATR;
- var buffer=Math.max(2*AF_PLANNER_POLICY.tick,z.atr*AF_PLANNER_POLICY.bufferZoneATR,
-  near?sourceATR*AF_PLANNER_POLICY.sweepBufferATR:anchor.sourceATR*AF_PLANNER_POLICY.bufferZoneATR);
+ var anchor=protection.anchor,sourceATR=exec.atr,near=anchor.kind==='MAPPED_LIQUIDITY'&&anchor.gap<=exec.atr*AF_PLANNER_POLICY.sweepBandATR;
+ var buffer=Math.max(2*AF_PLANNER_POLICY.tick,exec.atr*AF_PLANNER_POLICY.bufferZoneATR,near?exec.atr*AF_PLANNER_POLICY.sweepBufferATR:0);
  var protect=s===1?Math.min(z.lo,anchor.price):Math.max(z.hi,anchor.price),floor=exec.atr*AF_PLANNER_POLICY.minRiskATR;
+ var depth=afZoneAdaptiveDepth_(z,anchor.price,exec.atr),entryRaw=s===1?z.hi-depth*(z.hi-z.lo):z.lo+depth*(z.hi-z.lo);
+ c.entry=afPlannerRound_(entryRaw,s===-1);c.evidence.adaptiveDepth=depth;
  // Widen outward to the floor only. Never squeeze an anchored stop to meet max risk/RR.
  c.stop=afPlannerRound_(s===1?Math.min(protect-buffer,c.entry-floor):Math.max(protect+buffer,c.entry+floor),s===-1);
  c.evidence.stopBuffer=buffer;c.evidence.zoneATR=z.atr;c.evidence.executionATR=exec.atr;
- c.evidence.stopPolicy={experimental:true,sourceATR:sourceATR,sweepBand:near,protect:protect,minRisk:floor,maxRisk:exec.atr*AF_PLANNER_POLICY.maxRiskATR};
+ c.evidence.stopPolicy={sourceATR:sourceATR,sweepBand:near,protect:protect,minRisk:floor,maxRisk:exec.atr*AF_PLANNER_POLICY.maxRiskATR};
  if(c.entry<z.lo||c.entry>z.hi||c.stop<=0)return fail('AF_TICK_OUTSIDE_ZONE');
  if(s===1?c.entry>=ctx.quote.ask:c.entry<=ctx.quote.bid)return fail('AF_LIMIT_ALREADY_MARKETABLE');
  if(s===1?ctx.quote.bid<z.lo:ctx.quote.ask>z.hi)return fail('AF_ZONE_BREACHED');
@@ -206,37 +248,44 @@ function afPlannerCandidate_(ctx,z,f,qc,now){
  if(risk<.01||risk<exec.atr*AF_PLANNER_POLICY.minRiskATR-1e-8||risk>exec.atr*AF_PLANNER_POLICY.maxRiskATR+1e-8)return fail('AF_STOP_ATR_RANGE');
  var entryReference=s===1?ctx.quote.ask:ctx.quote.bid,entryDistance=s*(entryReference-c.entry),entryDistanceATR=entryDistance/exec.atr;
  c.evidence.entryDistance={referencePrice:entryReference,distance:entryDistance,distanceATR:entryDistanceATR,maxDistanceATR:AF_PLANNER_POLICY.maxEntryDistanceATR};
- if(!afPlannerNum_(entryDistanceATR)||entryDistanceATR<0||entryDistanceATR>AF_PLANNER_POLICY.maxEntryDistanceATR)return fail('AF_ENTRY_TOO_FAR_FROM_MARKET');
+ if(!afPlannerNum_(entryDistanceATR)||entryDistanceATR<0||entryDistance>exec.atr*AF_PLANNER_POLICY.maxEntryDistanceATR+AF_PLANNER_POLICY.tick*1e-9)return fail('AF_ENTRY_TOO_FAR_FROM_MARKET');
  if(cost>risk*AF_PLANNER_POLICY.maxCostRisk+1e-8)return fail('AF_COST_TOO_HIGH');
  if(!Array.isArray(f.targets)||!Array.isArray(f.hitRatios))return fail('AF_FIBO_TARGETS_INVALID');
  var ratios=[1.618,2,2.618,3.5,4.236,5.472],seen={},bad=f.hitRatios.some(function(r){return !afPlannerNum_(r)||ratios.indexOf(r)<0;});
  f.targets.forEach(function(t){if(!t||![t.ratio,t.price].every(afPlannerNum_)||ratios.indexOf(t.ratio)<0||seen[t.ratio]||t.price<=0||
   typeof t.pending!=='boolean'||Math.abs(t.price-(f.zero+f.span*t.ratio))>.001||t.pending===(f.hitRatios.indexOf(t.ratio)>=0))bad=true;else seen[t.ratio]=true;});
  if(bad||f.targets.length!==ratios.length)return fail('AF_FIBO_TARGETS_INVALID');
- // The NEXT pending lifecycle target must still be ahead. Never skip one behind entry.
- var pending=f.targets.filter(function(t){return t.pending&&t.ratio>=(f.method===3?1.618:2.618);}).sort(function(a,b){return a.ratio-b.ratio;});
- if(!pending.length||s*(pending[0].price-c.entry)<=0)return fail('AF_NO_NEXT_FIBO_TARGET');
- var limit=pending[0].price;c.evidence.nextFibo={ratio:pending[0].ratio,price:limit};
- if(s*( (s===1?ctx.quote.bid:ctx.quote.ask)-limit)>=0)return fail('AF_FIBO_TARGET_ALREADY_REACHED');
- c.evidence.executionSafety=afPlannerExecutionSafety_(ctx,f,limit,anchor,now);
+ // First still-pending extension. The first opposing All Indy obstacle caps the TP.
+ c.evidence.executionSafety=afPlannerExecutionSafety_(ctx,f,null,anchor,now);
  if(c.evidence.executionSafety.code)return fail(c.evidence.executionSafety.code);
+ c.evidence.fiboIntrabarState={status:c.evidence.executionSafety.status,hitRatios:c.evidence.executionSafety.hitRatios,asof:c.evidence.executionSafety.from};
+ var pending=c.evidence.executionSafety.targets.filter(function(t){return t.pending&&t.ratio>1&&s*(t.price-c.entry)>0;}).sort(function(a,b){return Math.abs(a.price-c.entry)-Math.abs(b.price-c.entry)||a.ratio-b.ratio;});
+ if(!pending.length)return fail('AF_NO_NEXT_FIBO_TARGET');
+ var fibTarget=pending[0].price;c.evidence.nextFibo={ratio:pending[0].ratio,price:fibTarget};
+ if(s*((s===1?ctx.quote.bid:ctx.quote.ask)-fibTarget)>=0)return fail('AF_FIBO_TARGET_ALREADY_REACHED');
  var obstacles=[],badObstacle=false;
  ctx.zones.forEach(function(o){if(o.side!==-s)return;var of=ctx.frames[o.tf];
   if(!of||o.tfMs!==AF_PLANNER_TF[o.tf]||![o.lo,o.hi,o.knownAt].every(afPlannerNum_)||o.lo<=0||o.lo>o.hi||o.knownAt>Date.parse(of.lastClosedUtc)){badObstacle=true;return;}
-  if(s===1?o.hi>=c.entry:o.lo<=c.entry)obstacles.push({kind:'ZONE',tf:o.tf,id:o.id,price:s===1?Math.max(c.entry,o.lo):Math.min(c.entry,o.hi),
+  var families=Number(o.families||o.familyBit)||0,isDefend=o.isDefendCore===true||[AF_ZONE_FAMILY_.SD,AF_ZONE_FAMILY_.OB,AF_ZONE_FAMILY_.QML,AF_ZONE_FAMILY_.FLIP].some(function(bit){return afZoneHas_(families,bit);});
+  var isFvg=afZoneHas_(families,AF_ZONE_FAMILY_.FVG)||String(o.family||o.source||'').toUpperCase().indexOf('FVG')>=0;
+  if((isDefend||isFvg)&&Number(o.score)>=28&&(s===1?o.hi>=c.entry:o.lo<=c.entry))obstacles.push({kind:isFvg?'FVG':'DEFEND_ZONE',tf:o.tf,id:o.id,price:s===1?Math.max(c.entry,o.lo):Math.min(c.entry,o.hi),
    source:afPlannerZoneEvidence_(o),frameClose:afPlannerPick_(of,['lastClosedUtc']).lastClosedUtc});
  });
  Object.keys(ctx.frames).forEach(function(tf){var fr=ctx.frames[tf];if(!Array.isArray(fr.liquidity)){badObstacle=true;return;}
   fr.liquidity.forEach(function(l){if(!l||![1,-1].includes(l.side)||![l.price,l.knownAt].every(afPlannerNum_)||l.price<=0||l.knownAt>Date.parse(fr.lastClosedUtc)){badObstacle=true;return;}
-   if(l.side===-s&&s*(l.price-c.entry)>=0)obstacles.push({kind:'LIQUIDITY',tf:tf,price:l.price,
-    source:afPlannerPick_(l,['side','price','knownAt']),frameClose:afPlannerPick_(fr,['lastClosedUtc']).lastClosedUtc});});
+   var level=afPlannerLiquidityPrice_(l,s);if(l.side===-s&&s*(level-c.entry)>=0)obstacles.push({kind:'LIQUIDITY',tf:tf,price:level,
+    source:afPlannerPick_(l,['side','price','lo','hi','knownAt']),frameClose:afPlannerPick_(fr,['lastClosedUtc']).lastClosedUtc});});
  });
  if(badObstacle)return fail('AF_OBSTACLE_DATA_INVALID');
  obstacles.sort(function(a,b){var d=s*(a.price-b.price),x=JSON.stringify(a),y=JSON.stringify(b);return d||(x<y?-1:x>y?1:0);});
- if(obstacles.length){c.evidence.firstObstacle=obstacles[0];limit=s===1?Math.min(limit,obstacles[0].price-.01):Math.max(limit,obstacles[0].price+.01);}
- c.target=afPlannerRound_(limit,s===-1);
+ var firstObstacle=obstacles.filter(function(o){return s*(o.price-c.entry)>=0;}).sort(function(a,b){return Math.abs(a.price-c.entry)-Math.abs(b.price-c.entry);})[0]||null;
+ var minRoom=exec.atr*AF_PLANNER_POLICY.minRoomATR;c.evidence.firstObstacle=firstObstacle;
+ if(firstObstacle&&Math.abs(firstObstacle.price-c.entry)<minRoom)return fail('AF_FIRST_OBSTACLE_TOO_CLOSE');
+ var nearest=firstObstacle?afPlannerNearer_(fibTarget,firstObstacle.price,c.entry):fibTarget;
+ c.target=afPlannerRound_(nearest,s===-1);
  var reward=s*(c.target-c.entry);c.netR=(reward-cost)/(risk+cost);
  if(reward<=0||c.target<=0)return fail('AF_OBSTACLE_BLOCKS_TARGET');
+ if(reward<minRoom)return fail('AF_TARGET_ROOM_BELOW_MINIMUM');
  if(!afPlannerNum_(c.netR)||c.netR<AF_PLANNER_POLICY.minNetR)return fail('AF_NET_RR_LOW');
  var htf=ctx.frames[ctx.contextTF],trend=s*(htf.ema20-htf.ema50)>0;
  c.evidenceScore=Math.min(100,Math.min(30,z.score*.3)+(z.tests===0?15:7)+20+(trend?15:0)+(c.netR>=2?20:15));
@@ -279,3 +328,4 @@ function afPlannerDecision_(d,candidates){
  plan:{side:s,sideStr:s===1?'BUY':'SELL',entry:c.entry,stop:c.stop||c.sl,target:c.target||c.tp,netR:c.netR,invalidation:d.invalidation||'',
  evidence:ev,mode:'TEST',liveTrading:false}};
 }
+

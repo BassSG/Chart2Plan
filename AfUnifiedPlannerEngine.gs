@@ -5,12 +5,12 @@
  */
 
 var AF_UNIFIED_CONFIG = {
-  // All Indy 1.3.5 Core Parameters (Adjusted for 0-htfContext compensation)
+  // All Indy 1.3.5 source-score and eligibility thresholds.
   minActionScore: 62.0,
-  majorScore: 72.0,          // ปรับจาก 76 -> 72 เพื่อชดเชย htfContext=0 ใน 1.3.5
-  directReactionScore: 65.0, // ปรับจาก 70 -> 65 สำหรับโซน Fresh (tests=0) ที่มี Structure/Clean
+  majorScore: 76.0,
+  directReactionScore: 70.0,
   reactionMinScore: 28.0,
-  blockingObstacleScore: 62.0, // เฉพาะโซน Actionable (score >= 62) เท่านั้นที่บล็อกเป้า Fibo ได้
+  blockingObstacleScore: 28.0, // Pine reaction-map floor for an opposing Defend/FVG obstacle.
   maxActionTests: 1,
   maxWidthATR: 2.5,
 
@@ -18,7 +18,7 @@ var AF_UNIFIED_CONFIG = {
   minStopATR: 0.75,
   maxStopATR: 2.50,
   baseInvalidBufferATR: 0.15,
-  stopBufferATR: 0.18,
+  stopBufferATR: 0.15,
   anchorSearchATR: 1.50,
   sweepRiskATR: 0.60,
   sweepBufferATR: 0.25,
@@ -29,7 +29,6 @@ var AF_UNIFIED_CONFIG = {
   minPlanR: 1.0,
   minNetR: 1.50,
   maxCostRisk: 0.20,
-  maxTargetCapR: 4.50,        // ขยายเพดานให้รองรับเป้า Fibo 161.8% - 261.8%
   maxEntryDistanceATR: 6.0,   // hard limit for a pending entry too far from current quote
 
   // Stale Quote Tolerance (ระหว่างรอ AI ประมวลผล)
@@ -45,64 +44,53 @@ function evaluateZoneEligibility_(zone, chartAtr, chartSec) {
   const isDefendCore = Boolean(zone.isDefendCore ||
     ['SD', 'OB', 'QML', 'FLIP'].some(k => String(zone.family || zone.source || '').toUpperCase().includes(k)));
 
-  // ชดเชยคะแนน HTF Relevance (0-8 คะแนน) หากตัวคำนวณส่ง raw score ที่ตัด htfContext=0 มา
-  const tfSec = Number(zone.maxTfSec || zone.tfSec || chartSec || 900);
-  const tfRatio = chartSec > 0 ? tfSec / chartSec : 1;
-  const htfBonus = zone.htfCompensated ? 0 : (tfRatio >= 12 ? 8.0 : tfRatio >= 4 ? 5.0 : tfRatio >= 2 ? 3.0 : 0.0);
-  const mtfBonus = Math.min(6.0, Math.max(0, (Number(zone.tfCount || 1) - 1) * 3.0));
-  const effectiveScore = Math.min(100.0, Number(zone.score || 0) + htfBonus + mtfBonus);
+  // Pine's htfContext and breadth are both zero in Source Q. MTF affects rank only.
+  const rawScore = Number(zone.rawScore == null ? zone.score || 0 : zone.rawScore);
+  const effectiveScore = rawScore;
 
   const tags = zone.tags || {};
-  const hasSource = Boolean(tags.source || zone.hasSource);
-  const hasClean = Boolean(tags.clean || zone.hasClean);
-  const hasStruct = Boolean(tags.struct || zone.hasStruct);
-  const hasDisp = Boolean(tags.disp || zone.hasDisp);
-  const hasSweep = Boolean(tags.liq || zone.hasSweep);
-  const hasNested = Boolean(tags.nested || zone.hasNested);
+  const hasSource = Boolean(tags.source || zone.hasSource || zone.source===true);
+  const hasClean = Boolean(tags.clean || zone.hasClean || zone.clean);
+  const hasStruct = Boolean(tags.struct || zone.hasStruct || zone.structure);
+  const hasDisp = Boolean(tags.disp || zone.hasDisp || Number(zone.departureATR || zone.departure || 0) >= 0.60);
+  const hasSweep = Boolean(tags.liq || zone.hasSweep || zone.sweep);
+  const hasNested = Boolean(tags.nested || zone.hasNested || zone.nested);
   const isQml = String(zone.family || zone.source || '').toUpperCase().includes('QML');
 
-  const cleanHtf = hasClean && Number(zone.departureATR || 0) >= 0.75;
+  const cleanHtf = hasClean && Number(zone.departureATR || zone.departure || 0) >= 0.75;
   const majorEvidence = hasSource || hasNested || isQml || cleanHtf || (hasStruct && hasDisp);
 
   const tests = Number(zone.tests || 0);
   const width = Math.abs(Number(zone.hi) - Number(zone.lo));
   const sourceAtr = Number(zone.sourceAtr || chartAtr || 1);
   const widthOK = width <= sourceAtr * AF_UNIFIED_CONFIG.maxWidthATR;
-  const historyComplete = zone.historyComplete !== false;
-  const departed = zone.departed !== false;
+  const historyComplete = zone.historyComplete === true;
+  const departed = zone.departed === true;
 
   let role = 'REACTION';
   if (isLiquidityOnly) {
     role = 'LIQUIDITY';
   } else if (tests >= 2) {
     role = 'REACTION';
-  } else if (isDefendCore && effectiveScore >= AF_UNIFIED_CONFIG.majorScore && majorEvidence) {
+  } else if (isDefendCore && rawScore >= AF_UNIFIED_CONFIG.majorScore && majorEvidence) {
     role = 'MAJOR';
   }
 
   const actionable = historyComplete && departed && widthOK && isDefendCore &&
     tests <= AF_UNIFIED_CONFIG.maxActionTests && effectiveScore >= AF_UNIFIED_CONFIG.minActionScore;
 
-  // สิทธิ์วาง Direct Limit:
-  // - MAJOR: tests <= 1
-  // - REACTION: tests == 0 และ (effectiveScore >= 65 พร้อม majorEvidence หรือ effectiveScore >= 70)
-  const directLimitOK = actionable && (
-    (role === 'MAJOR' && tests <= 1) ||
-    (role === 'REACTION' && tests === 0 && (
-      effectiveScore >= 70.0 ||
-      (effectiveScore >= AF_UNIFIED_CONFIG.directReactionScore && (majorEvidence || hasSweep))
-    ))
-  );
+  const directLimitOK = actionable && (role === 'MAJOR' && tests <= 1 || role === 'REACTION' && rawScore >= 70 && tests === 0);
 
   return {
     role,
-    rawScore: Number(zone.score || 0),
+    rawScore: rawScore,
     effectiveScore: Number(effectiveScore.toFixed(2)),
     isDefendCore,
     isLiquidityOnly,
     widthOK,
     actionable,
     directLimitOK,
+    viewRank:Number.isFinite(zone.viewRank)?zone.viewRank:null,
     majorEvidence,
     hasSweep
   };
@@ -152,17 +140,10 @@ function computeEntryAndStop_(coreZone, meta, anchor, fiboContext, chartAtr, min
   depth = Math.min(0.65, depth + Math.min(0.12, extension * 0.08));
 
   const rawEntry = side === 1 ? (hi - depth * (hi - lo)) : (lo + depth * (hi - lo));
-  const entry = roundToTick_(rawEntry, mintick, side === 1 ? 'nearest' : 'nearest');
+  const entry = roundToTick_(rawEntry, mintick, side === 1 ? 'down' : 'up');
 
-  // ตรวจสอบ Protective Anchor หรือ Fibo C (0%) ที่อยู่ด้านหลังโซน
+  // Only mapped same-side liquidity can widen the protected level beyond the POI.
   let effectiveAnchor = anchor;
-  if (effectiveAnchor === null && fiboContext && fiboContext.zeroPrice) {
-    const fibZero = Number(fiboContext.zeroPrice);
-    const fibGap = side === 1 ? (lo - fibZero) : (fibZero - hi);
-    if (fibGap >= 0 && fibGap <= chartAtr * AF_UNIFIED_CONFIG.anchorSearchATR) {
-      effectiveAnchor = fibZero;
-    }
-  }
 
   const protectLevel = effectiveAnchor === null
     ? distal
@@ -240,12 +221,10 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
   const distanceLimit=Number(market.maxEntryDistanceATR||AF_UNIFIED_CONFIG.maxEntryDistanceATR);
   const maxEntryDistance=chartAtr*distanceLimit;
   geom.entryDistance={referencePrice:entryReference,distance:entryDistance,distanceATR:Number((entryDistance/chartAtr).toFixed(3)),maxDistanceATR:distanceLimit};
-  if(!Number.isFinite(entryDistance)||entryDistance<0||entryDistance>maxEntryDistance)
+  if(!Number.isFinite(entryDistance)||entryDistance<0||entryDistance>maxEntryDistance+mintick*1e-9)
     return {valid:false,reason:'AF_ENTRY_TOO_FAR_FROM_MARKET',meta,geom,fiboSynergy:fibMatch};
 
-  // ตรวจหาสิ่งกีดขวางฝั่งตรงข้าม:
-  // แยกเป็น (1) Hard Blocking Obstacle (Actionable Defend Zone score >= 62 และ tests <= 1)
-  // และ (2) Minor Reaction Obstacle (score 28..61) สำหรับแจ้งเตือน ไม่บล็อก TP หลัก
+  // First opposing Defend/FVG obstacle with Pine's reaction-map floor (Source Q >= 28).
   let hardObstaclePrice = null;
   let minorObstaclePrice = null;
 
@@ -253,20 +232,12 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
     if (Number(z.side) === -side) {
       const oppMeta = evaluateZoneEligibility_(z, chartAtr, market.chartSec || 900);
       const isFvg = String(z.family || z.source || '').toUpperCase().includes('FVG');
-      if ((oppMeta.isDefendCore || isFvg) && oppMeta.effectiveScore >= AF_UNIFIED_CONFIG.reactionMinScore) {
-        const oppEdge = side === 1 ? Number(z.lo) : Number(z.hi);
-        const isAhead = side === 1 ? (oppEdge > geom.entry) : (oppEdge < geom.entry);
+      if ((oppMeta.isDefendCore || isFvg) && oppMeta.rawScore >= AF_UNIFIED_CONFIG.blockingObstacleScore) {
+        const oppEdge = side === 1 ? Math.max(geom.entry,Number(z.lo)) : Math.min(geom.entry,Number(z.hi));
+        const isAhead = side === 1 ? (Number(z.hi) >= geom.entry) : (Number(z.lo) <= geom.entry);
         if (isAhead) {
-          const isHardBlocker = oppMeta.isDefendCore && Number(z.tests || 0) <= 1 &&
-            oppMeta.effectiveScore >= AF_UNIFIED_CONFIG.blockingObstacleScore;
-          if (isHardBlocker) {
-            if (hardObstaclePrice === null || Math.abs(oppEdge - geom.entry) < Math.abs(hardObstaclePrice - geom.entry)) {
-              hardObstaclePrice = oppEdge;
-            }
-          } else {
-            if (minorObstaclePrice === null || Math.abs(oppEdge - geom.entry) < Math.abs(minorObstaclePrice - geom.entry)) {
-              minorObstaclePrice = oppEdge;
-            }
+          if (hardObstaclePrice === null || Math.abs(oppEdge - geom.entry) < Math.abs(hardObstaclePrice - geom.entry)) {
+            hardObstaclePrice = oppEdge;
           }
         }
       }
@@ -281,7 +252,7 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
     if (Number(z.side) === -side && isLiq) {
       const candidate = side === 1 ? Number(z.lo) : Number(z.hi);
       const isAhead = side === 1 ? (candidate > geom.entry) : (candidate < geom.entry);
-      if (isAhead && Math.abs(candidate - geom.entry) >= chartAtr * AF_UNIFIED_CONFIG.minRoomATR) {
+      if (isAhead) {
         if (nearestLiquidityTarget === null || Math.abs(candidate - geom.entry) < Math.abs(nearestLiquidityTarget - geom.entry)) {
           nearestLiquidityTarget = candidate;
         }
@@ -290,7 +261,11 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
   }
 
   // เลือก TP หลักจาก (1) เป้า Fibo ที่สอดคล้อง (2) Nearest Liquidity (3) ขอบหน้า Hard Obstacle
-  const fibTarget = fibMatch && fibMatch.nextTarget ? Number(fibMatch.nextTarget) : null;
+  const pendingTargets=(fibMatch.pendingTargets||[]).filter(t=>side*(Number(t.price)-geom.entry)>0).sort((a,b)=>Math.abs(a.price-geom.entry)-Math.abs(b.price-geom.entry));
+  const fibTarget=pendingTargets.length?Number(pendingTargets[0].price):null;
+  if(fibMatch.matched&&fibTarget===null)return {valid:false,reason:'AF_NO_NEXT_FIBO_TARGET',meta,geom,fiboSynergy:fibMatch};
+  if(fibTarget!==null&&side*((side===1?bid:ask)-fibTarget)>=0)return {valid:false,reason:'AF_FIBO_TARGET_ALREADY_REACHED',meta,geom,fiboSynergy:fibMatch};
+  fibMatch.nextTarget=fibTarget;
   // A mapped BSL/SSL is a real target before a farther Fibo projection;
   // it is never crossed just because the Fibo book has a distant extension.
   let rawTarget = fibTarget || nearestLiquidityTarget || hardObstaclePrice;
@@ -310,19 +285,15 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
     return { valid: false, reason: 'NO_MAPPED_STRUCTURAL_OR_FIBO_TARGET', meta, geom, fibMatch };
   }
 
-  // Cap ไม่เกิน maxTargetCapR
-  const maxCapPrice = side === 1
-    ? geom.entry + geom.risk * AF_UNIFIED_CONFIG.maxTargetCapR
-    : geom.entry - geom.risk * AF_UNIFIED_CONFIG.maxTargetCapR;
-  const cappedTarget = side === 1 ? Math.min(rawTarget, maxCapPrice) : Math.max(rawTarget, maxCapPrice);
-  const tp = roundToTick_(cappedTarget, mintick, side === 1 ? 'down' : 'up');
+  const tp = roundToTick_(rawTarget, mintick, side === 1 ? 'down' : 'up');
 
   const grossReward = (tp - geom.entry) * side;
   const grossRR = geom.risk > 0 ? grossReward / geom.risk : 0;
   const netRR = geom.risk > 0 ? (grossReward - cost) / (geom.risk + cost) : 0;
 
+  const firstObstaclePrice=[hardObstaclePrice,nearestLiquidityTarget].filter(Number.isFinite).sort((a,b)=>Math.abs(a-geom.entry)-Math.abs(b-geom.entry))[0]??null;
   const roomOK = grossReward >= chartAtr * AF_UNIFIED_CONFIG.minRoomATR &&
-    (hardObstaclePrice === null || Math.abs(hardObstaclePrice - geom.entry) >= chartAtr * AF_UNIFIED_CONFIG.minRoomATR);
+    (firstObstaclePrice === null || Math.abs(firstObstaclePrice - geom.entry) >= chartAtr * AF_UNIFIED_CONFIG.minRoomATR);
   const costRiskOK = cost <= geom.risk * AF_UNIFIED_CONFIG.maxCostRisk;
   const rrOK = grossRR >= AF_UNIFIED_CONFIG.minPlanR && netRR >= AF_UNIFIED_CONFIG.minNetR && costRiskOK;
 
@@ -340,6 +311,7 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
       fiboTarget: fibTarget,
       liquidityTarget: nearestLiquidityTarget,
       hardObstaclePrice,
+      firstObstaclePrice,
       minorObstacleWatch: minorObstaclePrice,
       grossRR: Number(grossRR.toFixed(2)),
       netRR: Number(netRR.toFixed(2)),
@@ -348,17 +320,29 @@ function buildUnifiedCandidatePlan_(coreZone, allZones, fibos, market, chartAtr)
   };
 }
 
-/**
- * 5) จับคู่ Fibo 3 โหมด (TREND_CONTINUATION / HTF_PULLBACK_SYNC / FORM_PRE_BREAK_SNIPER)
- */
+function afUnifiedZoneFiboRelation_(zone,f,chartAtr){
+  const side=Number(zone.side),zeroT=Number(f.zeroT||f.anchors&&f.anchors.c&&f.anchors.c.t),zero=Number(f.zeroPrice||f.zero);
+  const a=f.anchors||{},pts=[a.a&&Number(a.a.p),a.b&&Number(a.b.p),a.c&&Number(a.c.p)].filter(Number.isFinite);
+  const low=Number.isFinite(f.legLow)?f.legLow:pts.length?Math.min(...pts):NaN;
+  const high=Number.isFinite(f.legHigh)?f.legHigh:pts.length?Math.max(...pts):NaN;
+  const tol=Math.max(.01,Number(f.sourceATR||chartAtr||0)*.03),same=side===Number(f.side);
+  if(!same)return {code:5,related:false,reason:'DIRECTION_ONLY'};
+  if(!Number.isFinite(zeroT)||Number(zone.knownAt)<zeroT)return {code:6,related:false,reason:'ZONE_PRECEDES_FIBO_C'};
+  if(side===1?Number(zone.lo)<zero:Number(zone.hi)>zero)return {code:4,related:false,reason:'ZONE_CROSSES_FIBO_ZERO'};
+  const inside=Number(zone.lo)>=low-tol&&Number(zone.hi)<=high+tol;
+  const bookRelated=zone.relatedFiboId===f.id||zone.fiboId===f.id;
+  return {code:inside||bookRelated?2:4,related:!!(inside||bookRelated),reason:inside?'SAME_LEG_INSIDE_FROZEN_RANGE':bookRelated?'EXPLICIT_BOOK_LINK':'OUTSIDE_FROZEN_RANGE',
+    zeroT,zero,legLow:low,legHigh:high,tolerance:tol};
+}
+
+/** Fibo pairing requires a Pine relation (code 1/2) or an explicit book link. */
 function matchFiboSynergy_(coreZone, side, fibos, chartAtr) {
   const list = Array.isArray(fibos) ? fibos : [];
-  const zLo = Number(coreZone.lo);
-  const zHi = Number(coreZone.hi);
 
-  // โหมด 1: TREND_CONTINUATION (มี Fibo ฝั่งเดียวกันที่ broken=true, invalidated=false, มี pending target)
+  // Same-direction alone (Pine link code 5) is not a match.
   const sameSideActive = list.filter(f =>
-    Number(f.side) === side && f.broken === true && !f.invalidated && f.historyComplete !== false && f.nextPendingTarget
+    Number(f.side) === side && f.broken === true && !f.invalidated && (f.closedT===null||f.closedT===undefined) &&
+    f.historyComplete !== false && f.intrabarSafe!==false && (f.status===undefined||f.status===2) && f.nextPendingTarget && afUnifiedZoneFiboRelation_(coreZone,f,chartAtr).related
   );
   if (sameSideActive.length > 0) {
     sameSideActive.sort((a, b) => Number(b.tfSec || 0) - Number(a.tfSec || 0));
@@ -370,48 +354,9 @@ function matchFiboSynergy_(coreZone, side, fibos, chartAtr) {
       fiboTf: best.tf,
       zeroPrice: best.zero,
       nextTarget: best.nextPendingTarget,
-      note: 'Aligned with active broken Fibo extension'
-    };
-  }
-
-  // โหมด 2: HTF_PULLBACK_SYNC (มี Fibo ฝั่งสวนของ TF เล็กที่วิ่งมาถึงโซนเป้าระดับ 161.8% - 423.6% ทับกับโซนพอดี)
-  const counterExhaustion = list.filter(f => {
-    if (Number(f.side) !== -side || !f.broken || f.invalidated) return false;
-    const t1618 = Number(f.target1618 || 0);
-    const t2618 = Number(f.target2618 || 0);
-    const t4236 = Number(f.target4236 || 0);
-    const tol = chartAtr * 0.35;
-    const hitsZone = [t1618, t2618, t4236].some(t => t > 0 && t >= (zLo - tol) && t <= (zHi + tol));
-    return hitsZone;
-  });
-  if (counterExhaustion.length > 0) {
-    const cFib = counterExhaustion[0];
-    return {
-      matched: true,
-      mode: 'HTF_PULLBACK_SYNC',
-      fiboId: cFib.id,
-      fiboTf: cFib.tf,
-      zeroPrice: zLo,
-      nextTarget: cFib.zero || null,
-      note: 'Counter-leg Fibo exhaustion clusters inside defend POI'
-    };
-  }
-
-  // โหมด 3: FORM_PRE_BREAK_SNIPER (มี Form ฝั่งเดียวกันที่ยืนยันจุด C แล้ว รอเบรกหัว B)
-  const pendingForms = list.filter(f =>
-    Number(f.side) === side && f.stage === 1 && !f.invalidated &&
-    Number(f.cPrice) <= zHi + chartAtr * 0.25 && Number(f.cPrice) >= zLo - chartAtr * 0.25
-  );
-  if (pendingForms.length > 0) {
-    const pForm = pendingForms[0];
-    return {
-      matched: true,
-      mode: 'FORM_PRE_BREAK_SNIPER',
-      fiboId: pForm.id,
-      fiboTf: pForm.tf,
-      zeroPrice: pForm.cPrice,
-      nextTarget: pForm.bPrice || pForm.target1618 || null,
-      note: 'Confirmed Form C-anchor rests on defend POI'
+       pendingTargets:(best.targets||[]).filter(t=>t.pending===true),
+      relation:afUnifiedZoneFiboRelation_(coreZone,best,chartAtr),
+      note: 'Same-side child zone is inside the frozen Fibo leg after C'
     };
   }
 
@@ -426,44 +371,53 @@ function roundToTick_(price, mintick, mode) {
 }
 
 
-/** Adapt the verified, bounded local All Indy / EBW-Fibo replay records into
- * the unified engine schema. This is a lossless adapter: it maps source fields
- * and does NOT invent OB/QML/Flip zones or label unknown evidence as present. */
+/** Adapt bounded All Indy / EBW-Fibo replay records without manufacturing evidence. */
 function afUnifiedMapZone_(z,allZones){
   if(!z||![1,-1].includes(Number(z.side))||![z.lo,z.hi,z.score,z.tests,z.atr,z.knownAt].every(function(x){return typeof x==='number'&&Number.isFinite(x);}))return null;
-  var peers=(allZones||[]).filter(function(p){return p&&p!==z&&p.family==='SD'&&Number(p.side)===Number(z.side)&&p.tf!==z.tf&&Number(p.lo)<=Number(z.hi)&&Number(p.hi)>=Number(z.lo);});
+ var peers=(allZones||[]).filter(function(p){return p&&p!==z&&Number(p.side)===Number(z.side)&&p.tf!==z.tf&&Number(p.lo)<=Number(z.hi)&&Number(p.hi)>=Number(z.lo);});
   var tfSec=Number(z.tfSec||Number(z.tfMs||0)/1000)||900;
-  var maxTfSec=peers.reduce(function(v,p){return Math.max(v,Number(p.tfSec)||Number(p.tfMs||0)/1000||tfSec);},tfSec);
-  var tags={source:!!z.source,clean:!!z.clean,struct:!!z.structure,disp:Number(z.departure||0)>=0.75,liq:!!z.sweep,nested:peers.length>0,pd:!!z.pd};
-  return Object.assign({},z,{family:'SD',sourceTag:!!z.source,tfSec:tfSec,maxTfSec:maxTfSec,tfCount:1+peers.length,
-    isDefendCore:true,isLiquidityOnly:false,historyComplete:z.historyComplete!==false,departed:true,
-    sourceAtr:Number(z.atr),departureATR:Number(z.departure||0),hasSource:tags.source,hasClean:tags.clean,
-    hasStruct:tags.struct,hasDisp:tags.disp,hasSweep:tags.liq,hasNested:tags.nested,tags:tags});
+   var maxTfSec=peers.reduce(function(v,p){return Math.max(v,Number(p.tfSec)||Number(p.tfMs||0)/1000||tfSec);},tfSec),tfKeys={};tfKeys[z.tf||tfSec]=true;peers.forEach(function(p){tfKeys[p.tf||p.tfMs/1000]=true;});
+ var tags=Number(z.tags)||0;
+ var tagView={source:!!(tags&AF_ZONE_TAG_.SOURCE)||z.source===true,clean:!!(tags&AF_ZONE_TAG_.CLEAN)||!!z.clean,
+  struct:!!(tags&AF_ZONE_TAG_.STRUCT)||!!z.structure,disp:!!(tags&AF_ZONE_TAG_.DISP)||Number(z.departure||0)>=.60,
+  liq:!!(tags&AF_ZONE_TAG_.LIQ)||!!z.sweep,nested:!!(tags&AF_ZONE_TAG_.NESTED)||!!z.nested,pd:!!(tags&AF_ZONE_TAG_.PD)||!!z.pd};
+ var family=String(z.family||z.source||'SD'),familyBit=Number(z.familyBit||z.families)||0;
+ var isCore=z.isDefendCore===true||[AF_ZONE_FAMILY_.SD,AF_ZONE_FAMILY_.OB,AF_ZONE_FAMILY_.QML,AF_ZONE_FAMILY_.FLIP].some(function(bit){return (familyBit&bit)!==0;})||/^(SD|OB|QML|FLIP)/i.test(family);
+  var mapped=Object.assign({},z,{family:family,tfSec:tfSec,maxTfSec:maxTfSec,tfCount:Object.keys(tfKeys).length,
+     isDefendCore:isCore,isLiquidityOnly:!!z.isLiquidityOnly,historyComplete:z.historyComplete===true,departed:z.departed===true,
+    sourceAtr:Number(z.sourceAtr||z.atr),rawScore:Number(z.score),departureATR:Number(z.departureATR||z.departure||0),
+    hasSource:tagView.source,hasClean:tagView.clean,hasStruct:tagView.struct,hasDisp:tagView.disp,hasSweep:tagView.liq,
+    hasNested:tagView.nested,tags:tagView});
+ mapped.role=evaluateZoneEligibility_(mapped,Number(z.atr),tfSec).role;
+ return mapped;
 }
 function afUnifiedMapLiquidity_(l,tf,index){
   if(!l||![1,-1].includes(Number(l.side))||!Number.isFinite(Number(l.price))||!Number.isFinite(Number(l.knownAt)))return null;
   var price=Number(l.price),side=Number(l.side);
-  return {id:'LIQ:'+tf+':'+String(l.knownAt)+':'+String(index),tf:tf,tfSec:Number(String(tf).replace('m',''))*60||900,
-    side:side,lo:price,hi:price,price:price,score:0,tests:0,knownAt:Number(l.knownAt),atr:Number(l.atr)||0,
+  return {id:'LIQ:'+tf+':'+String(l.knownAt)+':'+String(index),tf:tf,tfSec:AF_PLANNER_TF[tf]/1000||900,
+    side:side,lo:Number.isFinite(l.lo)?l.lo:price,hi:Number.isFinite(l.hi)?l.hi:price,price:price,score:0,tests:0,knownAt:Number(l.knownAt),atr:Number(l.atr)||0,
     family:'LIQ',role:'LIQUIDITY',isLiquidityOnly:true,isDefendCore:false,historyComplete:true};
 }
-function afUnifiedMapFibo_(f,tf,spot){
+function afUnifiedMapFibo_(f,tf,spot,ctx){
   if(!f||![1,-1].includes(Number(f.side)))return null;
-  var targets=Array.isArray(f.targets)?f.targets:[],side=Number(f.side);
-  var pending=targets.filter(function(t){return t&&t.pending===true&&Number.isFinite(Number(t.ratio))&&Number.isFinite(Number(t.price))&&side*(Number(t.price)-spot)>0;})
+  var safety=ctx&&typeof afPlannerExecutionSafety_==='function'?afPlannerExecutionSafety_(ctx,f,null,null,Date.now()):null;
+  var targets=safety&&!safety.code?safety.targets:Array.isArray(f.targets)?f.targets:[],side=Number(f.side),intrabarSafe=!safety||!safety.code&&safety.status===2;
+  var pending=targets.filter(function(t){return t&&t.pending===true&&Number.isFinite(Number(t.ratio))&&Number.isFinite(Number(t.price));})
     .sort(function(a,b){return side*(Number(a.price)-Number(b.price));});
   var byRatio={};targets.forEach(function(t){if(t&&Number.isFinite(Number(t.ratio))&&Number.isFinite(Number(t.price)))byRatio[Number(t.ratio).toFixed(3)]=Number(t.price);});
   return Object.assign({},f,{tf:tf,tfSec:Number(f.tfSec)||Number(f.tfMs||0)/1000||900,zeroPrice:Number(f.zero),
-    invalidated:!!f.invalidated,historyComplete:f.historyComplete!==false,nextPendingTarget:pending.length?Number(pending[0].price):null,
+    targets:targets,invalidated:!!f.invalidated,intrabarSafe:intrabarSafe,status:safety&&!safety.code?safety.status:f.status,historyComplete:f.historyComplete!==false,nextPendingTarget:pending.length?Number(pending[0].price):null,
     target1618:byRatio['1.618']||null,target2618:byRatio['2.618']||null,target4236:byRatio['4.236']||null,
     stage:f.stage, cPrice:f.cPrice||f.anchors&&f.anchors.c&&f.anchors.c.p, bPrice:f.bPrice||f.anchors&&f.anchors.b&&f.anchors.b.p});
 }
 function afUnifiedPrepareContext_(ctx,market){
-  var rawZones=Array.isArray(ctx.zones)?ctx.zones:[],mapped=rawZones.map(function(z){return Object.assign({},z,{tfSec:Number(z.tfSec)||Number(z.tfMs||0)/1000||900,family:'SD'});});
-  var defend=mapped.map(function(z){return afUnifiedMapZone_(z,mapped);}).filter(Boolean),all=defend.slice();
+  var rawZones=Array.isArray(ctx.zones)?ctx.zones:[],mapped=rawZones.map(function(z){return Object.assign({},z,{tfSec:Number(z.tfSec)||Number(z.tfMs||0)/1000||900});});
+  var mappedAll=mapped.map(function(z){return afUnifiedMapZone_(z,mapped);}).filter(Boolean),defend=mappedAll.filter(function(z){return z.isDefendCore&&!z.isLiquidityOnly;}),all=mappedAll.slice();
   Object.keys(ctx.frames||{}).forEach(function(tf){var rows=ctx.frames[tf]&&ctx.frames[tf].liquidity||[];rows.forEach(function(l,i){var v=afUnifiedMapLiquidity_(l,tf,i);if(v)all.push(v);});});
   var spot=market&&Number.isFinite(market.bid)?market.bid:ctx.quote&&ctx.quote.bid||0;
-  var fibos=(ctx.fibos||[]).map(function(f){var owner=Object.keys(ctx.frames||{}).find(function(tf){return Number(ctx.frames[tf].tfMs)===Number(f.tfMs);})||f.tf||'15m';return afUnifiedMapFibo_(f,owner,spot);}).filter(Boolean);
+  var chart=ctx.frames[ctx.executionTF],chartAtr=chart&&chart.atr||1,chartSec=chart&&chart.tfMs/1000||900,history=chart&&chart.closedOHLC||[],prior3=history.length>=4?history[history.length-4][5]:spot;
+  mappedAll.forEach(function(z){var gap=z.side===1?Math.max(0,spot-z.hi):Math.max(0,z.lo-spot),drive=z.side===1?Math.max(0,prior3-spot)/chartAtr:Math.max(0,spot-prior3)/chartAtr;z.viewRank=afZoneViewRank_(z,gap,chartAtr,z.tfCount,z.maxTfSec,chartSec,drive);});
+  var fibos=(ctx.fibos||[]).map(function(f){var owner=Object.keys(ctx.frames||{}).find(function(tf){return Number(ctx.frames[tf].tfMs)===Number(f.tfMs);})||f.tf||'15m';return afUnifiedMapFibo_(f,owner,spot,ctx);}).filter(Boolean);
   return {zones:all,fibos:fibos,defendZones:defend};
 }
 function afUnifiedCandidateList_(ctx,market,chartAtr){
@@ -480,10 +434,11 @@ function afUnifiedCandidateList_(ctx,market,chartAtr){
     out.push({id:id,stableKey:id,side:Number(z.side),sideStr:Number(z.side)===1?'BUY':'SELL',entry:geom.entry==null?null:geom.entry,
       stop:geom.sl==null?null:geom.sl,sl:geom.sl==null?null:geom.sl,target:targets.tp==null?null:targets.tp,tp:targets.tp==null?null:targets.tp,
       netR:targets.netRR==null?null:targets.netRR,risk:geom.risk==null?null:geom.risk,eligible:!!plan.valid,valid:!!plan.valid,
-      evidenceScore:plan.meta&&Number.isFinite(plan.meta.effectiveScore)?plan.meta.effectiveScore:Number(z.score)||0,setupMode:mode,zoneId:zoneId,fiboId:fiboId,
+      evidenceScore:plan.meta&&Number.isFinite(plan.meta.effectiveScore)?plan.meta.effectiveScore:Number(z.score)||0,viewRank:z.viewRank,setupMode:mode,zoneId:zoneId,fiboId:fiboId,
       zoneTF:z.tf||null,fiboTF:plan.fiboSynergy&&plan.fiboSynergy.fiboTf||null,meta:plan.meta||null,geom:geom,targets:targets,
       evidence:{candidateId:id,stableKey:id,zoneId:zoneId,fiboId:fiboId,zoneTF:z.tf||null,fiboTF:plan.fiboSynergy&&plan.fiboSynergy.fiboTf||null,
         policyVersion:'AF-UNIFIED-1.0',qcThreshold:65,cost:targets.costUsed==null?null:targets.costUsed,risk:geom.risk==null?null:geom.risk,spreadBefore:market.totalCost==null?market.spread:market.totalCost,setupMode:mode,meta:plan.meta||null,geom:geom,targets:targets,fibo:plan.fiboSynergy||null},gateCodes:plan.valid?[]:[plan.reason||'AF_UNIFIED_REJECTED']});
   }catch(e){out.push({id:'UNI:ERROR:'+String(z.id||''),side:z.side,zoneId:z.id,eligible:false,gateCodes:['AF_UNIFIED_CANDIDATE_ERROR']});}});
-  return out;
+  return out.sort(function(a,b){return (b.viewRank||0)-(a.viewRank||0)||String(a.id).localeCompare(String(b.id));});
 }
+

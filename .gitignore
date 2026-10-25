@@ -1,0 +1,7 @@
+.clasp.json
+.clasprc.json
+PrivateProviderConfig.*
+.env
+.env.*
+node_modules/
+outputs/

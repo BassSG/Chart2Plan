@@ -8,15 +8,15 @@ let passed=0;
 function test(name,fn){try{fn();passed++;console.log('PASS '+name);}catch(e){console.error('FAIL '+name);throw e;}}
 function env(){
   let now=T,held=false,acquires=0,uuid=0,fetches=0,fail=null;
-  const props={},books={};
+  const props={},books={},reads=[];
   class Sheet{
     constructor(name,book){this.name=name;this.book=book;this.rows=[];}
     setName(name){delete this.book.sheets[this.name];this.name=name;this.book.sheets[name]=this;return this;}
     getLastRow(){return this.rows.length;}
     appendRow(row){if(fail===this.name)throw Error('SIMULATED_WRITE_FAILURE');this.rows.push(row.slice());return this;}
-    getDataRange(){return {getValues:()=>this.rows.map(r=>r.slice())};}
+    getDataRange(){return {getValues:()=>{reads.push({sheet:this.name,full:true});return this.rows.map(r=>r.slice());}};}
     getRange(row,col,n=1,m=1){return {
-      getValues:()=>Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>this.rows[row-1+i]?.[col-1+j]??'')),
+      getValues:()=>{reads.push({sheet:this.name,row,col,n,m});return Array.from({length:n},(_,i)=>Array.from({length:m},(_,j)=>this.rows[row-1+i]?.[col-1+j]??''));},
       setValues:values=>{if(fail===this.name)throw Error('SIMULATED_WRITE_FAILURE');
         values.forEach((r,i)=>r.forEach((v,j)=>{(this.rows[row-1+i]??=[])[col-1+j]=v;}));return this;}
     };}
@@ -45,8 +45,8 @@ function env(){
       if(c.marketUnavailable)throw Error('market unavailable');
       return {symbol:'XAUUSD',sourceId:'Eightcap-MT5-Live',bars:c.bars||[]};}
   };
-  vm.createContext(c);vm.runInContext(source,c,{filename:'ResearchLog.gs'});
-  return {c,time:v=>{now=v;},get book(){return Object.values(books)[0];},
+  vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(__dirname,'DayTrade.gs'),'utf8'),c,{filename:'DayTrade.gs'});vm.runInContext(source,c,{filename:'ResearchLog.gs'});
+  return {c,reads,time:v=>{now=v;},get book(){return Object.values(books)[0];},
     get acquires(){return acquires;},get fetches(){return fetches;},fail:v=>{fail=v;},
     lock:fn=>c.afResearchLock_(fn),record:(r=response(),q=request())=>c.afResearchLock_(()=>c.afAuditRecord_(r,q))};
 }
@@ -183,7 +183,7 @@ test('archived blocked news cancels; unknown/future news does not imply CLEAR',(
 test('stats exclude every unresolved state',()=>{
   const e=env(),plans=e.c.AF_PAPER_STATES.map(state=>({state,pnlPrice:null,fillAt:null}));
   plans.push({state:'TP',pnlPrice:2,fillAt:T},{state:'SL',pnlPrice:-1,fillAt:T});
-  const s=e.c.afPaperSummary_(plans);assert.equal(s.stats.resolved,2);assert.equal(s.stats.pnlPrice,1);assert.equal(s.stats.excludedUnresolved,7);
+  const s=e.c.afPaperSummary_(plans);assert.equal(s.stats.resolved,2);assert.equal(s.stats.pnlPrice,1);assert.equal(s.stats.excludedUnresolved,e.c.AF_PAPER_STATES.length);
 });
 test('manual refresh fresh provider replay persisted exactly once with evidence',()=>{
   const e=env();e.record();e.time(T+2*M);
@@ -217,6 +217,16 @@ test('dashboard stable public schema, Bangkok date, no provider or AI polling',(
   assert.equal(d.plans[0].entry,100);assert.equal(d.plans[0].netR,1.8);assert.ok(d.plans[0].id);
   assert.equal(d.desiredRange.researchOnly,true);assert.equal(d.desiredRange.enforcedQuota,false);
   assert.equal(d.counts.Pending,1);assert.equal(d.counts.Active,0);
+});
+test('dashboard bounds candidate previews while retaining full audit evidence',()=>{
+  const e=env(),r=response();
+  r.audit.candidates=Array.from({length:61},(_,i)=>({id:'c'+i,accepted:i===0,evidence:{payload:'x'.repeat(10000)}}));
+  const saved=e.record(r),audit=e.c.afResearchReadBlob_(e.book,saved.auditRef,saved.auditHash);
+  const d=e.c.afResearchDashboard('owner'),latest=d.latestRuns[0];
+  assert.equal(audit.candidates.length,61);assert.equal(audit.candidates[0].evidence.payload.length,10000);
+  assert.equal(latest.candidateCount,61);assert.equal(latest.candidates.length,60);
+  assert.equal(latest.candidatesTruncated,true);assert.equal(latest.candidates[0].accepted,true);
+  assert.ok(JSON.stringify(d).length<30000);
 });
 test('today modeled fills uses Bangkok fill candle close; REVIEW is not manufactured fill',()=>{
   const e=env();e.record();e.time(T+M);e.c.bars=[bar(T,102,104,99,102)];e.c.afRefreshPaper('owner');
@@ -338,4 +348,50 @@ test('multi-chunk payload corruption and removal fail closed after hash prefix f
   rows[1][5]=original;assert.equal(e.c.afResearchReadBlob_(e.book,ref.ref,ref.hash).text.length,100000);
   sheet.rows.splice(sheet.rows.indexOf(rows[1]),1);assert.throws(()=>e.c.afResearchReadBlob_(e.book,ref.ref,ref.hash),/CHUNKS/);
 });
+function dayPaper(e,tf='15m'){
+ const r=response(),q=request();q.tradeType='daytrade';r.plan.evidence.executionTF=tf;
+ e.record(r,q);return e.c.afPaperLatest_(e.book,e.c.afResearchHash_('owner'))[0];
+}
+function dayActive(e,side=1){let p=dayPaper(e);if(side===-1){p.side=-1;p.stop=105;p.target=90;}
+ return e.c.afPaperStep_(p,side===1?bar(T,102,104,99,102):bar(T,98,101,96,98));}
+function advanceUntil(e,p,end){while(p.lastBarClose<end&&['PENDING','ACTIVE'].includes(p.state))p=e.c.afPaperStep_(p,bar(p.lastBarClose,102,104,101,102));return p;}
+test('daytrade shared rules freeze 60 and 240 minutes',()=>{const e=env();assert.equal(e.c.AF_DAYTRADE_RULES.pendingMinutes,60);assert.equal(e.c.AF_DAYTRADE_RULES.maxHoldMinutes,240);assert.ok(Object.isFrozen(e.c.AF_DAYTRADE_RULES));});
+test('daytrade pending horizon is independent of execution TF',()=>{for(const tf of ['5m','15m','1h']){const e=env(),p=dayPaper(e,tf);assert.equal(p.expiresAt,T+60*M);}});
+test('daytrade pending deadline starts at actual acceptance',()=>{const e=env();e.time(T+7*M);const p=dayPaper(e);assert.equal(p.createdAt,T+7*M);assert.equal(p.expiresAt,T+67*M);});
+test('daytrade horizon rolls across Bangkok midnight',()=>{const e=env(),at=Date.parse('2026-10-24T16:59:00Z');e.time(at);const p=dayPaper(e);assert.equal(p.expiresAt,at+60*M);assert.ok(p.expiresAt>Date.parse('2026-10-24T17:00:00Z'));});
+test('daytrade partial-minute activation does not extend pending deadline',()=>{const e=env();e.time(T+30000);const p=dayPaper(e);assert.equal(p.activationAt,T+M);assert.equal(p.expiresAt,T+60*M+30000);});
+test('daytrade pending stays pending through 59 observed minutes',()=>{const e=env(),p=advanceUntil(e,dayPaper(e),T+59*M);assert.equal(p.state,'PENDING');});
+test('daytrade pending expires at 60 observed minutes',()=>{const e=env(),p=advanceUntil(e,dayPaper(e),T+60*M);assert.equal(p.state,'EXPIRED');assert.equal(p.reason,'PENDING_TTL_60_MINUTES');});
+test('daytrade cannot fill from a bar opening at expiry',()=>{const e=env();let p=dayPaper(e);p.lastBarClose=p.expiresAt;p=e.c.afPaperStep_(p,bar(p.expiresAt,102,104,99,102));assert.equal(p.state,'EXPIRED');assert.equal(p.fillAt,null);});
+test('daytrade can fill in final complete minute ending at expiry',()=>{const e=env();let p=advanceUntil(e,dayPaper(e),T+59*M);p=e.c.afPaperStep_(p,bar(T+59*M,102,104,99,102));assert.equal(p.state,'ACTIVE');assert.equal(p.fillAt,T+60*M);});
+test('entry in minute spanning partial expiry is unresolved',()=>{const e=env();e.time(T+30000);let p=dayPaper(e);p.lastBarClose=T+60*M;p=e.c.afPaperStep_(p,bar(T+60*M,102,104,99,102));assert.equal(p.reason,'ENTRY_EXPIRY_SAME_M1_ORDER_UNKNOWN');assert.equal(p.pnlPrice,null);});
+test('no entry in minute spanning expiry expires without invented fill',()=>{const e=env();e.time(T+30000);let p=dayPaper(e);p.lastBarClose=T+60*M;p=e.c.afPaperStep_(p,bar(T+60*M));assert.equal(p.state,'EXPIRED');assert.equal(p.fillAt,null);});
+test('daytrade fill sets holding deadline from modeled fill time',()=>{const e=env(),p=dayActive(e);assert.equal(p.state,'ACTIVE');assert.equal(p.fillAt,T+M);assert.equal(p.holdUntil,T+241*M);});
+test('late fill receives its own full 240 minute holding horizon',()=>{const e=env();let p=advanceUntil(e,dayPaper(e),T+59*M);p=e.c.afPaperStep_(p,bar(T+59*M,102,104,99,102));assert.equal(p.holdUntil,T+300*M);});
+test('daytrade remains active before holding deadline',()=>{const e=env(),p=advanceUntil(e,dayActive(e),T+240*M);assert.equal(p.state,'ACTIVE');assert.equal(p.exitAt,null);});
+test('daytrade exits at 240 minutes using observed final Bid close',()=>{const e=env(),p=advanceUntil(e,dayActive(e),T+241*M);assert.equal(p.state,'TIME_EXIT');assert.equal(p.exitAt,T+241*M);assert.equal(p.exitPrice,102);assert.equal(p.pnlPrice,1.98);});
+test('sell time exit uses Ask close and frozen spread',()=>{const e=env();let p=dayActive(e,-1);p.lastBarClose=p.holdUntil-M;p=e.c.afPaperStep_(p,bar(p.lastBarClose,98,101,96,98));assert.equal(p.state,'TIME_EXIT');assert.equal(p.exitPrice,99);assert.equal(p.pnlPrice,.98);});
+test('SL on final holding bar takes precedence over time exit',()=>{const e=env();let p=dayActive(e);p.lastBarClose=p.holdUntil-M;p=e.c.afPaperStep_(p,bar(p.lastBarClose,102,104,94,96));assert.equal(p.state,'SL');assert.equal(p.exitPrice,95);});
+test('TP on final holding bar takes precedence over time exit',()=>{const e=env();let p=dayActive(e);p.lastBarClose=p.holdUntil-M;p=e.c.afPaperStep_(p,bar(p.lastBarClose,102,111,101,109));assert.equal(p.state,'TP');assert.equal(p.exitPrice,110);});
+test('dual exits at holding boundary remain unresolved',()=>{const e=env();let p=dayActive(e);p.lastBarClose=p.holdUntil-M;p=e.c.afPaperStep_(p,bar(p.lastBarClose,102,111,94,102));assert.equal(p.state,'REVIEW');assert.equal(p.pnlPrice,null);});
+test('missing M1 coverage at timeout cannot invent closing price',()=>{const e=env();let p=dayActive(e);p=e.c.afPaperStep_(p,bar(p.holdUntil,102,104,101,102));assert.equal(p.reason,'MISSING_OR_INVALID_M1_COVERAGE');assert.equal(p.pnlPrice,null);});
+test('daytrade deadline is immutable even when global policy changes',()=>{const e=env();let p=dayActive(e);e.c.AF_DAYTRADE_RULES={pendingMinutes:1,maxHoldMinutes:1};assert.equal(p.horizon.maxHoldMinutes,240);p=advanceUntil(e,p,T+241*M);assert.equal(p.state,'TIME_EXIT');});
+test('time exits participate in resolved performance with costs',()=>{const e=env(),p=advanceUntil(e,dayActive(e),T+241*M),s=e.c.afPaperSummary_([p]);assert.equal(s.counts.TIME_EXIT,1);assert.equal(s.stats.resolved,1);assert.equal(s.stats.wins,1);assert.equal(s.stats.pnlPrice,1.98);});
+test('daytrade public record includes frozen rolling deadlines',()=>{const e=env(),p=dayActive(e),v=e.c.afPaperPublic_(p);assert.equal(v.horizon.model,'ROLLING');assert.equal(v.holdUntil,p.holdUntil);assert.equal(v.realBroker,false);});
+test('daytrade no fresh bars or outage cannot expire plan from clock alone',()=>{for(const unavailable of [true,false]){const e=env();dayPaper(e);e.time(T+1000*M);e.c.marketUnavailable=unavailable;e.c.bars=[];const s=e.c.afRefreshPaper('owner');assert.equal(s.counts.PENDING,1);assert.equal(s.changed,0);}});
+test('invalid frozen holding deadline is rejected without PnL',()=>{const e=env();let p=dayActive(e);p.holdUntil=null;p=e.c.afPaperStep_(p,bar(T+M));assert.equal(p.reason,'HOLD_DEADLINE_INVALID');assert.equal(p.pnlPrice,null);});
+test('daytrade replay retry persists timeout once',()=>{const e=env();let p=dayActive(e);p.lastBarClose=p.holdUntil-M;e.lock(()=>e.c.afPaperCommit_(e.book,p,'FIXTURE','PENDING'));e.time(p.holdUntil);e.c.bars=[bar(p.lastBarClose)];const first=e.c.afRefreshPaper('owner');assert.equal(first.counts.TIME_EXIT,1);assert.equal(first.changed,1);const n=e.book.getSheetByName('PaperPlans').rows.length;assert.equal(e.c.afRefreshPaper('owner').changed,0);assert.equal(e.book.getSheetByName('PaperPlans').rows.length,n);});
+test('blob lookup reads only reference column and selected payload rows',()=>{
+ const e=env(),saved=e.record();e.lock(()=>e.c.afResearchBlob_(e.book,{unrelated:'x'.repeat(180000)}));e.reads.length=0;
+ const audit=e.c.afResearchReadBlob_(e.book,saved.auditRef,saved.auditHash);assert.equal(audit.runId,'run1');
+ const reads=e.reads.filter(r=>r.sheet==='Snapshots');assert.ok(reads.some(r=>r.col===2&&r.m===1));assert.ok(!reads.some(r=>r.full));
+ const selected=e.book.getSheetByName('Snapshots').rows.filter(r=>r[1]===saved.auditRef).length;
+ assert.equal(reads.filter(r=>r.col===1&&r.m===6).reduce((n,r)=>n+r.n,0),selected);
+});
+test('automatic plan dashboard skips audit bodies and keeps identical plan states',()=>{
+ const e=env(),saved=e.record(),read=e.c.afResearchReadBlob_,refs=[];e.c.afResearchReadBlob_=(book,ref,hash)=>{refs.push(ref);return read(book,ref,hash);};
+ const light=e.c.afResearchDashboard('owner',false);assert.equal(light.plans.length,1);assert.equal(light.audits.length,0);assert.ok(!refs.includes(saved.auditRef));assert.equal(e.fetches,0);
+ const full=e.c.afResearchDashboard('owner');assert.equal(full.audits.length,1);assert.deepEqual(plain(light.plans),plain(full.plans));assert.deepEqual(plain(light.counts),plain(full.counts));
+});
 console.log('\n'+passed+' offline ResearchLog tests passed. No live provider or broker assertions.');
+

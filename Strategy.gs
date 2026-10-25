@@ -73,3 +73,4 @@ function afAdvance(plan,bar) {
   p.lastBarClose=bar.closeTime;
   return p;
 }
+

@@ -34,3 +34,4 @@ function afAnalyzeMarket(){
  }catch(e){var code=String(e.message||'');return {mode:'TEST',liveTrading:false,decision:'NO_TRADE',reason:/^(MT5|AF_MARKET|AF_NEWS|NEWS)_[A-Z0-9_]+$/.test(code)?code:'ANALYSIS_DATA_OR_ENGINE_UNAVAILABLE'};}finally{lock.releaseLock();}
 }
 function afLastAnalysis(){afAssertSandbox_();var s=PropertiesService.getScriptProperties().getProperty('AF_LAST_ANALYSIS');return s?JSON.parse(s):{mode:'TEST',state:'NO_MANUAL_ANALYSIS_YET'};}
+
