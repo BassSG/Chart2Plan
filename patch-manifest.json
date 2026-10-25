@@ -1,6 +1,6 @@
 {
   "scriptId": "1SM3hKmFADM-gYV6IuuZiH6XreZcwhIiAqUaObuiZf5KXGmUMKBHUfzdu",
-  "revision": "2026-10-25-alerts-and-signal-log",
+  "revision": "2026-10-25-hourly-market-open",
   "files": [
     {
       "source": "DayTrade.gs",
@@ -12,7 +12,7 @@
       "source": "Workflow.gs",
       "target": "Workflow.js",
       "baselineSha256": "c56f4c2ff14e0e8b7ab4d2857d4716eb6ca6cef77b02ef13eaec9cdc023d0a3d",
-      "patchedSha256": "c56f4c2ff14e0e8b7ab4d2857d4716eb6ca6cef77b02ef13eaec9cdc023d0a3d"
+      "patchedSha256": "264d98251b6d0eb6fbbf63eb3c093975cbdfafddd817303323ee218f47445f51"
     },
     {
       "source": "ResearchLog.gs",
@@ -23,13 +23,13 @@
     {
       "source": "ResearchUi.html",
       "target": "ResearchUi.html",
-      "baselineSha256": "e3c51fb5686d731b55f9795400c94b5e8fbf058a8e83739add2065322abd9606",
+      "baselineSha256": "88e45a22fc4c8827f6f72e0ad3cabdfa16878af49f35e232f6be71cd1d480fea",
       "patchedSha256": "88e45a22fc4c8827f6f72e0ad3cabdfa16878af49f35e232f6be71cd1d480fea"
     },
     {
       "source": "PremiumUi.html",
       "target": "PremiumUi.html",
-      "baselineSha256": "16824c4b8f0e5a0c9bbf295a959add8cfb48afe045c9d2dfd15290972bcbe87a",
+      "baselineSha256": "7abbe9d391e90220cf7f27581bfae46011e4a7966a377c72f94df207441ff510",
       "patchedSha256": "7abbe9d391e90220cf7f27581bfae46011e4a7966a377c72f94df207441ff510"
     },
     {
@@ -41,8 +41,8 @@
     {
       "source": "Code.gs",
       "target": "Code.js",
-      "baselineSha256": "383a561bacb9e40ef8201d5b890215249c35cc35fee9af33ee8bc2d9ba74fd02",
-      "patchedSha256": "1f5db2caae769f54de5c45f9e4f64955d2319b0f6057e6775a6663125f1bd171"
+      "baselineSha256": "1f5db2caae769f54de5c45f9e4f64955d2319b0f6057e6775a6663125f1bd171",
+      "patchedSha256": "8840b51f9664411e0860edba0f9c7b77130605ebd8a2b051993d54aebc168d0a"
     },
     {
       "source": "Planner.gs",
@@ -71,7 +71,7 @@
     {
       "source": "Workspace.gs",
       "target": "Workspace.js",
-      "baselineSha256": "f54d51d660ec62b11e2079ad571b27620cc3575ab6dc9271ca7500b8e515229b",
+      "baselineSha256": "36fe2cad2f2c65edb6f6b3bc396560c3d4fb89cb35fbf3a20f120d398b086152",
       "patchedSha256": "36fe2cad2f2c65edb6f6b3bc396560c3d4fb89cb35fbf3a20f120d398b086152"
     },
     {
@@ -95,14 +95,20 @@
     {
       "source": "SharedSignals.gs",
       "target": "SharedSignals.js",
-      "baselineSha256": "198758488726ddbaeaf906afd961d28f2c672d88d1b5a34091ab16cd6376cb8e",
+      "baselineSha256": "be887babb8c7d0ec2278f4cf6cd369aa2ea2d5c83fa77c930011ac4eec8814da",
       "patchedSha256": "be887babb8c7d0ec2278f4cf6cd369aa2ea2d5c83fa77c930011ac4eec8814da"
     },
     {
       "source": "SharedAlerts.gs",
       "target": "SharedAlerts.js",
-      "baselineSha256": null,
+      "baselineSha256": "1adf356701808d42eddbb8d09ab18c09b0159c9fad8dc2daa268b454e6718490",
       "patchedSha256": "1adf356701808d42eddbb8d09ab18c09b0159c9fad8dc2daa268b454e6718490"
+    },
+    {
+      "source": "HourlyAnalysis.gs",
+      "target": "HourlyAnalysis.js",
+      "baselineSha256": null,
+      "patchedSha256": "4a016bfaa06178497ae00acbee6897bc60f458476bc7ed6ce7e41b47976568aa"
     }
   ],
   "requiredScopes": [],

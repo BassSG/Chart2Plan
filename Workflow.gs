@@ -96,7 +96,7 @@ function afWorkflowNewsEvidence_(news){
  out.events=news&&Array.isArray(news.events)?news.events.slice(0,500).map(event):null;
  out.event=event(news&&news.event);out.nextNews=event(news&&news.nextNews);return out;
 }
-function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
+function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc,requireOpenMarket){
  var runId='AF:'+new Date().toISOString()+':'+Utilities.getUuid(),audit=afPlannerAudit_(runId),lock=null,held=false,req={},knownCost=null,knownUsage={};
  function finish(status,stage,code,extra,store){
   audit.stage=stage;audit.reasonCode=code;audit.gateCodes=code==='AF_PAPER_SIGNAL_READY'?[]:[code];
@@ -129,6 +129,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   audit.newsKnownAt=Date.now();audit.newsSnapshot=afWorkflowNewsEvidence_(news);
   if(!news.ok||!news.canTrade)return finish(news.ok?'SKIP_NEWS':'DATA_NEWS_UNAVAILABLE','NEWS_PRE',news.ok?'AF_NEWS_WINDOW':'AF_NEWS_UNAVAILABLE',null,true);
   audit.stage='QUOTE_PRE';AF_PROVIDER_RUN.quote=null;var preQuote=afPlannerQuote_();
+  if(requireOpenMarket===true&&(preQuote.weekend_test_mode===true||preQuote.market_status!=='open'||preQuote.is_market_open===false))throw Error('AF_MARKET_CLOSED');
   audit.stage='DATA_PRE';var context=afBuildAnalystContext_(tradeType,preQuote);
   audit.snapshot=afPlannerSnapshot_(context,quality);
   audit.postChecks.quote.original=afPlannerClean_(audit.snapshot.quote);
@@ -156,6 +157,7 @@ function processAnalysisWithDetailedLog(tradeType,symbol,user,model,qc){
   // Always refresh quote/news after a model response, even NO_TRADE/schema reject.
   audit.stage='POST_QUOTE';post.quote.state='CHECKING';post.quote.checkedAt=new Date().toISOString();
   AF_PROVIDER_RUN.quote=null;var latestQuote=afPlannerQuote_();
+  if(requireOpenMarket===true&&(latestQuote.weekend_test_mode===true||latestQuote.market_status!=='open'||latestQuote.is_market_open===false))throw Error('AF_MARKET_CLOSED');
   post.quote.latest=afPlannerPostQuote_(latestQuote);post.quote.state='AVAILABLE';
   post.quote.ageMs=afPlannerNum_(post.quote.latest.timestamp)?Date.now()-post.quote.latest.timestamp*1000:null;
   // Observed movement is not a passed gate until the original checks below execute.
@@ -295,5 +297,3 @@ function afResearchDiagnostics(tradeType,symbol,qc){
  }catch(e){audit.reasonCode=afWorkflowFailureCode_(e);audit.gateCodes=[audit.reasonCode];return finish(false,afWorkflowStatus_(audit.reasonCode));}
  finally{if(held&&lock){try{lock.releaseLock();}catch(_){}}}
 }
-
-
