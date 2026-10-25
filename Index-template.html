@@ -518,8 +518,9 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
         <label for="aiModel">ให้ AI ตัวไหนช่วยวิเคราะห์</label>
         <div class="space-model-controls">
           <select id="aiModel" class="model-select" style="flex:1 1 auto;">
+            <option value="google/gemini-3.8-flash" selected>Gemini 3.8 Flash · OpenRouter (ค่าเริ่มต้น)</option>
             <option value="openai/chatgpt-4o-latest"  >gpt-4o</option>
-            <option value="openai/gpt-6.1-sol-pro" selected >gpt-6.1-sol-pro</option>
+            <option value="openai/gpt-6.1-sol-pro">gpt-6.1-sol-pro</option>
             <option value="qwen-plus" >qwen-plus</option>
             <option value="gemini-3.1-pro-preview" >gemini-3.1-pro</option>
             <option value="opencode-go/qwen3.6-plus" >qwen3.6-plus</option>  
@@ -711,4 +712,5 @@ body.cosmic-app .skip-to-content:focus {top:12px;}
   <?!= include('ResearchUi'); ?>
 </body>
 </html>
+
 

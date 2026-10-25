@@ -1,6 +1,6 @@
 {
   "scriptId": "1SM3hKmFADM-gYV6IuuZiH6XreZcwhIiAqUaObuiZf5KXGmUMKBHUfzdu",
-  "revision": "2026-10-25-reading-workspace-2",
+  "revision": "2026-10-25-openrouter-gemini-38-default",
   "files": [
     {
       "source": "DayTrade.gs",
@@ -41,8 +41,8 @@
     {
       "source": "Code.gs",
       "target": "Code.js",
-      "baselineSha256": "8029e6d29a5f26a0b1f08e0ac6656f4ef95ba7615c403f90350d6104b4df6a5c",
-      "patchedSha256": "ed8a071fd7bb203b5e002b44f7c309b33dcc1ab2969c1092299133687bda30c2"
+      "baselineSha256": "ed8a071fd7bb203b5e002b44f7c309b33dcc1ab2969c1092299133687bda30c2",
+      "patchedSha256": "cd27afbfc53594e4f55710f48c460e0121d758f22502f46eddd15e540a492ece"
     },
     {
       "source": "Planner.gs",
@@ -78,13 +78,19 @@
       "source": "ClientScript.html",
       "target": "ClientScript.html",
       "baselineSha256": "9c53c0dd783227a13fe9aba108cadb5a7601bd6fa309ffff50e6bf3154e8f989",
-      "patchedSha256": "9c53c0dd783227a13fe9aba108cadb5a7601bd6fa309ffff50e6bf3154e8f989"
+      "patchedSha256": "f8eba594b61cf0fd81c15e7484928750b31484a645cc660eb63b17c26853cffc"
     },
     {
       "source": "Index-template.html",
       "target": "Index.html",
       "baselineSha256": "be9fe9b72d2f515e84d555db970aa632d9e7fabce9e81075a2a94eb44aedbfdd",
-      "patchedSha256": "be9fe9b72d2f515e84d555db970aa632d9e7fabce9e81075a2a94eb44aedbfdd"
+      "patchedSha256": "2499314f60c7be2c411290dd00e4494fe30ea155ca74ceaa8273996d98da529d"
+    },
+    {
+      "source": "AiProvider.gs",
+      "target": "AiProvider.js",
+      "baselineSha256": "61e7b8afdb827d27bbc31c029c3096af18e192a4cee11f031d98b20728c46f71",
+      "patchedSha256": "e6d007816ec30e2208ea20fb5d52397b36f0c90a64ad9ee7c01d1e434c36562d"
     }
   ]
 }

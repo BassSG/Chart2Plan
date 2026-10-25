@@ -76,6 +76,7 @@
     // init ที่เน้น First Paint ก่อน, งานรองค่อย defer
     (function initApp() {
       loadTheme();
+      initializeAiModelPreference();
 
       const currentUser = window.AF_SOLO_WORKSPACE.username;
       const currentDisplayName = window.AF_SOLO_WORKSPACE.displayName;
@@ -328,12 +329,26 @@
 
 /* ===== Custom AI-Model management ===== */
 const CUSTOM_MODELS_KEY = 'af.customModels';
+const AI_MODEL_PREFERENCE_KEY = 'af.selectedModel';
+const DEFAULT_AI_MODEL = 'google/gemini-3.8-flash';
+
+function initializeAiModelPreference(){
+  const sel=document.getElementById('aiModel');
+  if(!sel)return;
+  const saved=localStorage.getItem(AI_MODEL_PREFERENCE_KEY);
+  if(saved && [...sel.options].some(o=>o.value===saved))sel.value=saved;
+  else if(!saved)sel.value=DEFAULT_AI_MODEL;
+  sel.addEventListener('change',function(){localStorage.setItem(AI_MODEL_PREFERENCE_KEY,this.value);});
+}
 
 /* เรียกใช้ทุกครั้งที่โหลดหน้า */
 function loadCustomModels(){
   let arr=JSON.parse(localStorage.getItem(CUSTOM_MODELS_KEY)||'[]');
   if(!Array.isArray(arr)) arr=[];
   arr.forEach(m=>appendModelOption(m));
+  const sel=document.getElementById('aiModel'),saved=localStorage.getItem(AI_MODEL_PREFERENCE_KEY);
+  if(saved && [...sel.options].some(o=>o.value===saved))sel.value=saved;
+  else if(saved){sel.value=DEFAULT_AI_MODEL;localStorage.removeItem(AI_MODEL_PREFERENCE_KEY);}
 }
 function appendModelOption(name){
   if(!name) return;
@@ -413,7 +428,7 @@ function removeCustomModel(name){
   localStorage.setItem(CUSTOM_MODELS_KEY,JSON.stringify(arr));
   const sel=document.getElementById('aiModel');
   [...sel.options].filter(o=>o.value===name).forEach(o=>o.remove());
-  if(sel.value===name) sel.selectedIndex=0; // reset ถ้าเลือกอันที่ถูกลบอยู่
+  if(sel.value===name){sel.value=DEFAULT_AI_MODEL;localStorage.setItem(AI_MODEL_PREFERENCE_KEY,DEFAULT_AI_MODEL);}
 }
 
     function handleRegister() {
@@ -1762,4 +1777,5 @@ function navigateToAI(){spaceNavigate('analysisSettings');}
 
 function showDeleteUserPanel(){const user=window.AF_SOLO_WORKSPACE.username;Swal.fire({title:'ล้างข้อมูลทดสอบ',text:'ล้างประวัติและแผนจำลองของผู้ทดสอบใน Sheet ใหม่อย่างถาวร',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันล้างข้อมูลทดสอบ',cancelButtonText:'ยกเลิก'}).then(r=>{if(!r.isConfirmed)return;google.script.run.withSuccessHandler(v=>{Swal.fire(v.success?'สำเร็จ':'ดำเนินการไม่ได้',v.message,v.success?'success':'error');if(v.success){analysisHistory=[];premiumPersistHistory();premiumResetResult();loadTriggers();}}).withFailureHandler(e=>Swal.fire('ผิดพลาด',e.message,'error')).afDeleteOwnData(user,'DELETE_MY_TEST_DATA');});}
 </script>
+
 
