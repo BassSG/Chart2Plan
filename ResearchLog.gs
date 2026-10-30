@@ -102,9 +102,9 @@ function afPaperKey_(p,symbol){
   var e=p.evidence||{};
   return 'P:'+afResearchHash_(JSON.stringify([symbol,p.side,e.zoneId||e.zone||null,e.fiboId||e.fibo||null,p.entry,p.stop,p.target,afPaperTfMs_(p)]));
 }
-function afPaperLatest_(book,owner){
+function afPaperLatest_(book,owner,select){
   var latest={};afResearchRows_(book,'PaperPlans').forEach(function(r){if(r[2]===owner)latest[r[3]]=r;});
-  return Object.keys(latest).map(function(k){var row=latest[k],p=afResearchReadBlob_(book,row[7],row[8]);
+  return Object.keys(latest).filter(function(k){return !select||select(latest[k][4],k);}).map(function(k){var row=latest[k],p=afResearchReadBlob_(book,row[7],row[8]);
     if(p.key!==k||p.owner!==owner||p.state!==row[4]||p.revision!==row[5])throw Error('AF_RESEARCH_REVISION_MISMATCH');
     p._ref=row[7];return p;
   });

@@ -1,16 +1,17 @@
-/* TAProAlerts compatibility: fixed A:L positions match saveAlert() in the reference.
+/* AllindyAlerts retains fixed A:L positions compatible with the reference alert schema.
  * A plan has Entry/SL/TP1 rows, joined by its original Run ID and Plan Key.
  * State comes only from our PAPER ledger; no legacy TTL, analytics or EA publication. */
 var AF_SHARED_ALERT_CACHE=null;
 var AF_SHARED_ALERT_HEADERS=['Plan Source','Plan Key','Monitoring Mode','Source Revision','Pending ExpiresAt','Hold Until'];
-function afSharedAlertsUrl_(row){return 'https://docs.google.com/spreadsheets/d/'+AF_SHARED_CONFIG.spreadsheetId+'/edit#gid=0'+(row?'&range=A'+row:'');}
+function afSharedAlertsUrl_(row){return 'https://docs.google.com/spreadsheets/d/'+AF_SHARED_CONFIG.spreadsheetId+'/edit#gid='+AF_SHARED_CONFIG.alertsSheetId+(row?'&range=A'+row:'');}
 function afSharedPrepareAlerts_(){AF_SHARED_ALERT_CACHE=null;return afSharedAlertSchema_(true);}
 function afSharedAlertSchema_(prepare){
   if(AF_SHARED_ALERT_CACHE)return AF_SHARED_ALERT_CACHE;
-  var book=SpreadsheetApp.openById(AF_SHARED_CONFIG.spreadsheetId),sheet=book.getSheetByName('TAProAlerts');
-  if(!sheet||sheet.getSheetId()!==0)throw Error('AF_SHARED_ALERT_SHEET_MISMATCH');
+  var book=SpreadsheetApp.openById(AF_SHARED_CONFIG.spreadsheetId),sheet=book.getSheetByName(AF_SHARED_CONFIG.alertsName);
+  if(!sheet||sheet.getSheetId()!==AF_SHARED_CONFIG.alertsSheetId)throw Error('AF_SHARED_ALERT_SHEET_MISMATCH');
   var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(function(v){return String(v).trim();});
-  // The existing first 12 header labels are shifted. Do not rename them or move data.
+  // The first 12 values retain the reference alert writer's physical positions.
+  ['ID','Type','Symbol','Price','Message','Condition','Status','Run ID','Alert Type','Username','CreatedAt','Model'].forEach(function(h,i){if(headers[i]!==h)throw Error('AF_SHARED_ALERT_HEADER_MISMATCH');});
   ['ActivatedAt','EventAt','Status Reason','Lifecycle JSON'].forEach(function(h){if(headers.indexOf(h)<12||headers.indexOf(h)!==headers.lastIndexOf(h))throw Error('AF_SHARED_ALERT_HEADER_MISMATCH');});
   var missing=AF_SHARED_ALERT_HEADERS.filter(function(h){return headers.indexOf(h)<0;});
   if(missing.length){

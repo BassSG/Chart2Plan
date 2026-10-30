@@ -6,7 +6,7 @@ function afEnsureWorkspace_(){afAssertSandbox_();if(AF_WORKSPACE_CACHE)return AF
  if(id){book=SpreadsheetApp.openById(id);if(!book.getName().startsWith('Allindy + Fibo'))throw Error('AF_WORKSPACE_ID_MISMATCH');}
  else{var lock=LockService.getScriptLock();lock.waitLock(30000);try{id=p.getProperty('AF_SHEET_ID');if(id)book=SpreadsheetApp.openById(id);else{book=SpreadsheetApp.create('Allindy + Fibo — Independent Workspace');book.getSheets()[0].setName('Analysis');book.getSheetByName('Analysis').appendRow(['UTC','Run ID','User','Symbol','Style','Model','Status','QC','AI Cost USD','Result']);book.insertSheet('Plans').appendRow(['Run ID','User','Symbol','Type','Entry','SL','TP','State','UTC','Evidence']);p.setProperty('AF_SHEET_ID',book.getId());}}finally{lock.releaseLock();}}
  AF_WORKSPACE_CACHE=book;return book;}
-function afSheetPreviewUrl_(){return typeof afSharedEnabled_==='function'&&afSharedEnabled_()?'https://docs.google.com/spreadsheets/d/'+AF_SHARED_CONFIG.spreadsheetId+'/preview?gid=0':'https://docs.google.com/spreadsheets/d/'+afEnsureWorkspace_().getId()+'/preview';}
+function afSheetPreviewUrl_(){return typeof afSharedEnabled_==='function'&&afSharedEnabled_()?'https://docs.google.com/spreadsheets/d/'+AF_SHARED_CONFIG.spreadsheetId+'/preview?gid='+AF_SHARED_CONFIG.alertsSheetId:'https://docs.google.com/spreadsheets/d/'+afEnsureWorkspace_().getId()+'/preview';}
 function getWorkspaceSheetUrl(){return typeof afSharedEnabled_==='function'&&afSharedEnabled_()?afSharedAlertsUrl_():afEnsureWorkspace_().getUrl();}
 function afUserKey_(user){return 'AF_USER_'+Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(user))).replace(/=+$/,'');}
 function afPassword_(password,salt){return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,salt+'|'+password));}
@@ -30,7 +30,7 @@ function deleteMultipleAlerts(ids,user){if(!Array.isArray(ids))return {success:f
 function getTriggeredCount(user){afRequireUser_(user);var d=afResearchDashboard(user,false);return Object.assign({},d.counts,{mode:'TEST',realBroker:false,note:'ผลจำลองจากแท่งราคา ไม่ใช่ Fill โบรกเกอร์; กดอัปเดตผลแผนจำลองเพื่อประมวลผลแท่งใหม่',resolved:d.resolved||null});}
 function afLogAnalysis_(response,request){
  var saved=afAuditRecord_(response,request);response.auditRecord=saved;
- if(saved.sharedSave){response.sharedSave=saved.sharedSave;if(response.success)response.message+='\n'+(saved.sharedSave.success?'บันทึก TAProAlerts ครบ Entry / SL / TP และ TAProSignalLog แถวสรุปแล้ว':'บันทึกภายในแล้ว · ชีตร่วมยังไม่ยืนยัน ระบบจะซิงก์ซ้ำอัตโนมัติ');}
+ if(saved.sharedSave){response.sharedSave=saved.sharedSave;if(response.success)response.message+='\n'+(saved.sharedSave.success?'บันทึก AllindyAlerts ครบ Entry / SL / TP และ AllindySignalLog แถวสรุปแล้ว':'บันทึกภายในแล้ว · ชีตแยกยังไม่ยืนยัน ระบบจะซิงก์ซ้ำอัตโนมัติ');}
  var book=afEnsureWorkspace_();
  afResearchAppend_(book.getSheetByName('Analysis'),[new Date().toISOString(),response.runId,request.user,request.symbol,request.tradeType,request.model,response.status,response.qcResult?response.qcResult.percentage:'',response.cost==null?'':response.cost,String(response.message).slice(0,40000)]);
  if(response.success&&response.plan&&!saved.deduplicated){var p=response.plan;afResearchAppend_(book.getSheetByName('Plans'),[response.runId,request.user,request.symbol,p.side===1?'Buy Limit':'Sell Limit',p.entry,p.stop,p.target,saved.state==='REVIEW'?'Review':'Active',new Date().toISOString(),JSON.stringify(p.evidence)]);}

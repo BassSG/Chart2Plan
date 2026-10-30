@@ -1,7 +1,6 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),crypto=require('node:crypto');
-const alertHeaders=['Type','Symbol','Price','Message','Condition','Status','Run ID','Alert Type','Username','CreatedAt','Model','QCScore','PassMin','ActivatedAt','EventAt','Status Reason','Lifecycle JSON'];
-const signalHeaders=['Run ID','Username','CreatedAt','Symbol','Trade Type','Model','Code Version','Entry','SL','TP1','TPMost','Risk Distance','Reward Distance','Planned RR','ATR','Spread','Current Price','QC Score','QC Threshold','QC Version','QC Reasons','QC Notes','QC Breakdown JSON','Entry Assessment','SL Assessment','TP Assessment','Plan Review JSON','Bangkok Hour','Weekday','Entry Status','Exit Status','Outcome','Realized R','Entry TriggeredAt','Exit TriggeredAt','Trigger Source','UpdatedAt','New Order NotifiedAt','Final NotifiedAt'];
+const {alerts:alertHeaders,summary:signalHeaders}=JSON.parse(fs.readFileSync(__dirname+'/SeparatedSheetHeaders.json','utf8'));
 class Range{
  constructor(s,r,c,n=1,w=1){Object.assign(this,{s,r,c,n,w});}getRow(){return this.r;}
  getValues(){return Array.from({length:this.n},(_,i)=>Array.from({length:this.w},(_,j)=>this.s.rows[this.r+i-1]?.[this.c+j-1]??''));}
@@ -15,16 +14,16 @@ class Sheet{
  getRange(...args){return new Range(this,...args);}appendRow(row){if(this.failAppend&&this.failAppend(row))throw Error('temporary write failure');this.rows.push(row.slice());}
  insertColumnsAfter(_,n){this.maxCols+=n;}setColumnWidth(){}getRowHeight(r){return this.heights[r]||21;}setRowHeightsForced(r,n,h){assert.equal(n,1);this.heights[r]=h;}
 }
-const alerts=new Sheet(0,alertHeaders),signals=new Sheet(42397460,signalHeaders);
+const alerts=new Sheet(67400642,alertHeaders),signals=new Sheet(389564979,signalHeaders);
 const legacy=['ALERT-legacy','Buy Limit','XAU/USD',99,'Entry XAU/USD','less','Cancelled','RUN-legacy','Entry','existing-user',new Date(1),'legacy-model'];alerts.rows.push(legacy.slice());
-const target={getId:()=> '1jG-yyEs6PrRH1TK8VjQ4setEscwXC0cwAUCVghh3DZk',getSheetByName:n=>n==='TAProAlerts'?alerts:n==='TAProSignalLog'?signals:null};
+const target={getId:()=> '1uFf0xb-DG2VCPi1jez4MmjL0s-WoyKn7JJ9Vznj3tdo',getSheetByName:n=>n==='AllindyAlerts'?alerts:n==='AllindySignalLog'?signals:null};
 const data=new Map([['AF_SHARED_ENABLED','1']]),props={getProperty:k=>data.has(k)?data.get(k):null,getProperties:()=>Object.fromEntries(data),setProperty(k,v){data.set(k,String(v));return this;},deleteProperty:k=>data.delete(k)};
 let plans=[],marketCalls=0;const book={};
 const c=vm.createContext({console,Date,Number,JSON,Math,Array,String,Object,AF_RESEARCH_VERSION:'AF-RESEARCH-3',
- PropertiesService:{getScriptProperties:()=>props},SpreadsheetApp:{openById:()=>target,WrapStrategy:{CLIP:1},flush(){}},
+ PropertiesService:{getScriptProperties:()=>props},SpreadsheetApp:{openById:id=>{assert.equal(id,target.getId());return target;},WrapStrategy:{CLIP:1},flush(){}},
  Utilities:{formatDate:(d,tz,f)=>f==='H'?'12':'Sun'},LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},
  afResearchHash_:s=>'H:'+crypto.createHash('sha256').update(s).digest('hex'),afResearchCell_:v=>typeof v==='string'&&/^[\s]*[=+\-@]/.test(v)?"'"+v:v,
- afRequireUser_(){},afSoloIdentity_:()=>({username:'owner-test'}),afResearchLock_:fn=>fn(),afResearchBookLocked_:()=>book,afPaperLatest_:()=>plans,
+ afRequireUser_(){},afSoloIdentity_:()=>({username:'owner-test'}),afResearchLock_:fn=>fn(),afResearchBookLocked_:()=>book,afPaperLatest_:(_,__,select)=>plans.filter(p=>!select||select(p.state,p.key)),
  afPaperSummary_:rows=>({counts:{PENDING:rows.filter(p=>p.state==='PENDING').length,ACTIVE:rows.filter(p=>p.state==='ACTIVE').length}}),
  afPaperRefreshLocked_(){marketCalls++;throw Error('Unexpected replay after manual cancellation');},saveAlert(){throw Error('Legacy analytics/EA publication called');},postAnalyticsEvent(){throw Error('EA analytics called');}
 });
@@ -37,7 +36,7 @@ function paper(id='one'){return {key:'P:H:'+id,runId:'AF:'+id,symbol:'XAUUSD',si
 let count=0;function test(name,fn){fn();count++;console.log('PASS '+name);}
 let p=paper();
 const group=p=>c.afSharedFindAlerts_(schema,p);
-test('original shifted headers and legacy values retain their positions',()=>{assert.deepEqual(alerts.rows[0].slice(0,17),alertHeaders);assert.deepEqual(alerts.rows[1],legacy);assert.equal(m['Plan Source'],17);});
+test('separate workbook headers match alert positions and preserve existing values',()=>{assert.deepEqual(alerts.rows[0],alertHeaders);assert.deepEqual(alerts.rows[1],legacy);assert.equal(m['Plan Source'],17);assert.equal(signals.rows[0][0],'Symbol');assert.equal(c.afSharedAlertsUrl_(),'https://docs.google.com/spreadsheets/d/'+target.getId()+'/edit#gid=67400642');});
 test('a complete save creates exactly three Alert rows and one summary row',()=>{const r=c.afSharedObservePaper_(book,p);assert.equal(r.success,true);assert.equal(r.alertRows.length,3);assert.equal(alerts.rows.length,5);assert.equal(signals.rows.length,2);const g=group(p);for(const type of ['Entry','SL','TP1']){assert.equal(g[type].row[7],p.runId);assert.equal(g[type].row[m['Plan Key']],p.key);assert.equal(g[type].row[m['Monitoring Mode']],'PAPER');}assert.equal(g.Entry.row[1],'Sell Limit');assert.equal(g.Entry.row[2],'XAU/USD');assert.equal(g.Entry.row[3],100);assert.equal(g.SL.row[3],105);assert.equal(g.TP1.row[3],90);assert.equal(g.Entry.row[6],'Active');assert.equal(g.SL.row[6],'Pending');assert.equal(g.TP1.row[6],'Pending');assert.equal(g.Entry.row[5],'greater');assert.equal(g.TP1.row[5],'less');});
 test('repeated saving retains IDs and does not duplicate either sheet',()=>{const ids=Object.values(group(p)).map(x=>x.row[0]);c.afSharedObservePaper_(book,p);assert.deepEqual(Object.values(group(p)).map(x=>x.row[0]),ids);assert.equal(alerts.rows.length,5);assert.equal(signals.rows.length,2);});
 test('an Entry updates the existing three rows with activation times',()=>{p={...p,state:'ACTIVE',reason:'MODELED_LIMIT_FILL',revision:2,fillAt:t+120000,fillPrice:100,holdUntil:t+120000+14400000};c.afSharedObservePaper_(book,p);const g=group(p);assert.equal(g.Entry.row[6],'Triggered');assert.equal(g.SL.row[6],'Active');assert.equal(g.TP1.row[6],'Active');assert.equal(g.Entry.row[m.EventAt].getTime(),p.fillAt);assert.equal(g.SL.row[m.ActivatedAt].getTime(),p.fillAt);assert.equal(alerts.rows.length,5);});
@@ -45,7 +44,7 @@ test('TP closes the existing group while retaining the original prices',()=>{p={
 test('SL, expiry, review and time exit map without changing the paper outcome',()=>{for(const state of ['SL','EXPIRED','REVIEW','TIME_EXIT']){const q={...paper(state),state,fillAt:['SL','TIME_EXIT'].includes(state)?t+60000:null,exitAt:['SL','TIME_EXIT'].includes(state)?t+120000:null};const rs=['Entry','SL','TP1'].map(type=>c.afSharedAlertRow_(schema,q,q.sharedSignal,type,null));if(state==='SL')assert.deepEqual(rs.map(r=>r[6]),['Triggered','Triggered','Cancelled']);if(state==='EXPIRED')assert.deepEqual(rs.map(r=>r[6]),['Cancelled','Cancelled','Cancelled']);if(state==='REVIEW')assert.deepEqual(rs.map(r=>r[6]),['Review','Review','Review']);if(state==='TIME_EXIT')assert.deepEqual(rs.map(r=>r[6]),['Triggered','Cancelled','Cancelled']);assert.equal(JSON.parse(rs[0][m['Lifecycle JSON']]).paperState,state);}});
 test('partial Alert writes are retried without publishing an incomplete summary',()=>{const q=paper('partial');let fail=true;alerts.failAppend=row=>row[7]===q.runId&&row[8]==='TP1'&&fail;const before=signals.rows.length;assert.equal(c.afSharedObservePaper_(book,q).state,'RETRY_PENDING');assert.equal(signals.rows.length,before);assert.equal(Object.keys(group(q)).length,2);fail=false;assert.equal(c.afSharedObservePaper_(book,q).success,true);assert.equal(Object.keys(group(q)).length,3);assert.equal(signals.rows.length,before+1);alerts.failAppend=null;});
 test('immutable levels and duplicate Alert types stop synchronization',()=>{const g=group(p);alerts.rows[g.Entry.index-1][3]=101;assert.equal(c.afSharedObservePaper_(book,p).code,'AF_SHARED_ALERT_LEVELS_CHANGED');alerts.rows[g.Entry.index-1][3]=100;const copy=g.Entry.row.slice();alerts.rows.push(copy);assert.equal(c.afSharedObservePaper_(book,p).code,'AF_SHARED_ALERT_DUPLICATE_PLAN');alerts.rows.pop();c.afSharedObservePaper_(book,p);});
-test('a user cancellation in TAProAlerts is committed to our pending ledger',()=>{const q=paper('cancel');c.afSharedObservePaper_(book,q);const g=group(q);alerts.rows[g.Entry.index-1][6]='Cancelled';assert.equal(c.afSharedAlertCancellationRequested_(q),true);plans=[q];props.setProperty('AF_SHARED_NEEDS_SCAN','1');props.setProperty('AF_SHARED_ACTIVE_COUNT','1');const r=c.afSharedMonitor();assert.equal(r.success,true);assert.equal(q.state,'CANCELLED');assert.equal(q.reason,'USER_CANCELLED_SHARED_ALERTS');assert.equal(marketCalls,0);assert.deepEqual(Object.values(group(q)).map(x=>x.row[6]),['Cancelled','Cancelled','Cancelled']);});
+test('a user cancellation in AllindyAlerts is committed to our pending ledger',()=>{const q=paper('cancel');c.afSharedObservePaper_(book,q);const g=group(q);alerts.rows[g.Entry.index-1][6]='Cancelled';assert.equal(c.afSharedAlertCancellationRequested_(q),true);plans=[q];props.setProperty('AF_SHARED_NEEDS_SCAN','1');props.setProperty('AF_SHARED_ACTIVE_COUNT','1');const r=c.afSharedMonitor();assert.equal(r.success,true);assert.equal(q.state,'CANCELLED');assert.equal(q.reason,'USER_CANCELLED_SHARED_ALERTS');assert.equal(marketCalls,0);assert.deepEqual(Object.values(group(q)).map(x=>x.row[6]),['Cancelled','Cancelled','Cancelled']);});
 test('legacy rows remain byte-for-byte unchanged after all synchronization',()=>{assert.deepEqual(alerts.rows[1],legacy);});
 test('deadline projections update both sheets at the same revision without inventing an outcome',()=>{
  const q=paper('late'),savedDate=c.Date,ids=()=>Object.values(group(q)).map(x=>x.row[0]);c.afSharedObservePaper_(book,q);const originalIds=ids();
@@ -61,4 +60,16 @@ test('deadline projections update both sheets at the same revision without inven
  Object.assign(q,{state:'TP',revision:2,fillAt:t+60000,exitAt:t+120000,pnlPrice:9.98});c.afSharedObservePaper_(book,q);
  assert.deepEqual(Object.values(group(q)).map(x=>x.row[6]),['Triggered','Cancelled','Triggered']);assert.deepEqual(ids(),originalIds);
 });
+test('destination migration retries partial writes and copies only open plans once',()=>{
+ props.deleteProperty('AF_SHARED_MIGRATED_TARGET');
+ const pending=paper('split-pending'),active={...paper('split-active'),state:'ACTIVE',fillAt:t+60000,holdUntil:t+14460000},done={...paper('split-done'),state:'EXPIRED'};
+ let failure=true;alerts.failAppend=row=>row[7]===active.runId&&row[8]==='TP1'&&failure;
+ const first=c.afSharedMigrateOpen_(book,[pending,active,done]);assert.equal(first.success,false);assert.equal(props.getProperty('AF_SHARED_MIGRATED_TARGET'),null);
+ failure=false;const retry=c.afSharedMigrateOpen_(book,[pending,active,done]);assert.equal(retry.success,true);assert.equal(retry.retryPending,0);
+ const headers=signals.rows[0],key=headers.indexOf('Plan Key'),imported=headers.indexOf('Shared Imported'),marker=headers.indexOf('New Order NotifiedAt');
+ for(const plan of [pending,active]){const rows=signals.rows.filter(r=>r[key]===plan.key);assert.equal(rows.length,1);assert.equal(rows[0][imported],'YES');assert.equal(rows[0][marker],'AF_IMPORT_NO_BACKFILL');assert.equal(Object.keys(group(plan)).length,3);}
+ assert.equal(signals.rows.some(r=>r[key]===done.key),false);const n=alerts.rows.length,s=signals.rows.length;
+ assert.equal(c.afSharedMigrateOpen_(book,[pending,active,done]).imported,0);assert.equal(alerts.rows.length,n);assert.equal(signals.rows.length,s);alerts.failAppend=null;
+});
+test('wrong alert headers fail closed before writing',()=>{const original=alerts.rows[0][0];alerts.rows[0][0]='wrong';c.AF_SHARED_ALERT_CACHE=null;assert.throws(()=>c.afSharedAlertSchema_(false),/AF_SHARED_ALERT_HEADER_MISMATCH/);alerts.rows[0][0]=original;c.AF_SHARED_ALERT_CACHE=null;c.afSharedAlertSchema_(false);});
 console.log('SharedAlerts: '+count+' groups passed; no model, analytics, or broker calls.');

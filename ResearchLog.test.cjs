@@ -66,6 +66,13 @@ test('first initialization under caller lock has no nested lock',()=>{
   const e=env();e.record();assert.equal(e.acquires,1);
   ['Analysis','Plans','Audit','Snapshots','Events','PaperPlans'].forEach(n=>assert.ok(e.book.getSheetByName(n)));
 });
+test('latest-plan selector skips closed payloads only after finding the latest revision',()=>{
+  const e=env();e.record();const p=e.c.afPaperLatest_(e.book,e.c.afResearchHash_('owner'))[0];
+  p.state='EXPIRED';e.lock(()=>e.c.afPaperCommit_(e.book,p,'FIXTURE','PENDING'));
+  e.reads.length=0;const none=e.c.afPaperLatest_(e.book,e.c.afResearchHash_('owner'),s=>s==='PENDING');
+  assert.equal(none.length,0);assert.equal(e.reads.some(r=>r.sheet==='Snapshots'),false);
+  const latest=e.c.afPaperLatest_(e.book,e.c.afResearchHash_('owner'),s=>s==='EXPIRED');assert.equal(latest.length,1);assert.equal(latest[0].state,'EXPIRED');
+});
 test('all rejected candidates, gates, versions and accepted snapshot durable',()=>{
   const e=env(),r=e.record(),a=e.c.afResearchReadBlob_(e.book,r.auditRef,r.auditHash);
   assert.equal(a.candidates.length,2);assert.equal(a.candidates[1].accepted,false);assert.equal(a.versions.planner,'fixture');

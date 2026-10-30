@@ -89,13 +89,14 @@
  }
  function sharedStatus(v){
   var box=document.getElementById('afSharedStatus');
-  if(!v.enabled){box.textContent='ยังไม่ได้เชื่อมชีตติดตามร่วม';return;}
+  if(!v.enabled){box.textContent='ยังไม่ได้เชื่อมชีต Allindy';return;}
   var time=function(t){return t?new Date(t).toLocaleString('th-TH',{timeZone:'Asia/Bangkok',hour12:false}):'ยังไม่มีข้อมูล';};
   var health={OK:'ตัวติดตามเชื่อมต่อปกติ',STALE:'ตัวติดตามขาดช่วง · ตรวจ Trigger ใน 2-more',DEGRADED:'มีงานซิงก์รอแก้ไข',DATA_UNAVAILABLE:'ยังอ่านแท่งราคาไม่ได้',WAITING_BARS:'ยังไม่มีแท่งใหม่ให้ยืนยันผล'};
-  box.innerHTML='<strong>'+esc(health[v.health]||'รอตรวจสถานะ')+'</strong><br>บันทึก TAProAlerts + TAProSignalLog · รอบตรวจประมาณ 5 นาที'+
+  box.innerHTML='<strong>'+esc(health[v.health]||'รอตรวจสถานะ')+'</strong><br>บันทึก AllindyAlerts + AllindySignalLog · รอบตรวจประมาณ 5 นาที'+
     '<br>เรียกล่าสุด: '+esc(time(v.lastRequestedAt))+' · รอบตรวจจบ: '+esc(time(v.lastCheckedAt))+
     '<br>อ่านแท่งสำเร็จ: '+esc(time(v.lastReadAt))+' · ยืนยันความคืบหน้าแผน: '+esc(time(v.lastVerifiedAt))+
-    '<br>แท่งปิดล่าสุดที่อ่านได้: '+esc(time(v.lastCandleAt));
+    '<br>แท่งปิดล่าสุดที่อ่านได้: '+esc(time(v.lastCandleAt))+
+    '<br>แอป TAPro เดิมยังอ่านไฟล์เดิม ต้องเชื่อมแอปเพิ่มก่อนจึงจะรับแผนจากชีตใหม่นี้';
  }
  window.afResearchSharedStatus=sharedStatus;
  var lastDashboard=null,paperClockSignature='';
@@ -149,7 +150,7 @@
    '<details><summary>ดูหลักฐานตัวอย่าง 10 แผน · ดาวน์โหลด JSON เพื่อดูทั้งหมด</summary><pre id="afResearchJson"></pre></details>'+
    '<h4 class="af-research-paper-title">ผลแผนจำลองที่บันทึกไว้</h4><p class="af-research-paper-note" id="afResearchDashboardStatus">ยังไม่ได้โหลดประวัติจากเซิร์ฟเวอร์</p><div id="afResearchPaper"><div class="af-research-empty">กด “โหลดประวัติจากเซิร์ฟเวอร์” เพื่อดูสถานะที่บันทึกไว้</div></div>'+
    '<p class="af-research-footnote">แผนจำลองเริ่มนาทีเต็มถัดไป · เมื่อเชื่อมชีตร่วมจะใช้รอบตรวจเดิมประมาณทุก 5 นาที · ข้อมูลไม่ครบหรือไม่รู้ลำดับแท่งจะแสดง REVIEW · คะแนน QC ไม่ใช่โอกาสชนะ</p>'+
-   '<div class="af-research-actions"><button type="button" id="afSharedConnect">เชื่อมชีตติดตามร่วม</button></div><p id="afSharedStatus" class="af-research-paper-note" role="status">กำลังอ่านสถานะชีตติดตามร่วม…</p>'+
+   '<div class="af-research-actions"><button type="button" id="afSharedConnect">เชื่อมชีต Allindy</button></div><p id="afSharedStatus" class="af-research-paper-note" role="status">กำลังอ่านสถานะชีต Allindy…</p>'+
    '<details><summary>ประวัติรอบตรวจและสถานะแผนบนเซิร์ฟเวอร์</summary><pre id="afResearchPaperDetail"></pre></details></div>';
   var host=document.getElementById('c2pResearchHost');if(host)host.appendChild(section);else grid.parentNode.insertBefore(section,grid.nextSibling);
   Array.from(document.getElementById('symbol').options).forEach(function(o){if(o.value.replace('/','')!=='XAUUSD'){o.disabled=true;o.textContent+=' · ยังไม่มีข้อมูลยืนยัน';}});

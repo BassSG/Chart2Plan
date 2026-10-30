@@ -1,7 +1,8 @@
-/* One PAPER plan per shared SignalLog row. The research ledger remains the state authority.
- * TAProAlerts is mirrored through SharedAlerts.gs; no broker commands or model calls. */
+/* One PAPER plan per SignalLog row. The research ledger remains the state authority.
+ * Alert rows are mirrored through SharedAlerts.gs; no broker commands or model calls. */
 var AF_SHARED_CONFIG=Object.freeze({version:'AF-SHARED-SIGNALS-1',source:'ALLINDY_FIBO',
-  spreadsheetId:'1jG-yyEs6PrRH1TK8VjQ4setEscwXC0cwAUCVghh3DZk',sheetName:'TAProSignalLog',sheetId:42397460});
+  spreadsheetId:'1uFf0xb-DG2VCPi1jez4MmjL0s-WoyKn7JJ9Vznj3tdo',sheetName:'AllindySignalLog',sheetId:389564979,
+  alertsName:'AllindyAlerts',alertsSheetId:67400642});
 var AF_SHARED_HEADERS=['Plan Source','Plan Key','Order Type','Pending ExpiresAt','Hold Until','Plan State',
   'Net Planned RR','Monitoring Mode','Source Revision','Signal Text','Shared Imported','Monitor CheckedAt','Plan State JSON','Sync Status'];
 var AF_SHARED_CACHE=null,AF_SHARED_IMPORTING=false;
@@ -133,32 +134,54 @@ function afSharedObservePaper_(book,p){
   catch(error){var code=afSharedCode_(error);props.setProperty('AF_SHARED_LAST_ERROR',code);return {success:false,state:'RETRY_PENDING',code:code,url:afSharedUrl_()};}
 }
 function afSharedStatus(){
-  var p=PropertiesService.getScriptProperties();return Object.assign({enabled:afSharedEnabled_(),alertsReady:p.getProperty('AF_SHARED_ALERTS_READY')==='1',url:afSharedUrl_(),alertsUrl:afSharedAlertsUrl_(),sheet:'TAProSignalLog',source:'Allindy + Fibo',
+  var p=PropertiesService.getScriptProperties();return Object.assign({enabled:afSharedEnabled_(),alertsReady:p.getProperty('AF_SHARED_ALERTS_READY')==='1',url:afSharedUrl_(),alertsUrl:afSharedAlertsUrl_(),sheet:AF_SHARED_CONFIG.sheetName,source:'Allindy + Fibo',
     monitorInstalled:p.getProperty('AF_SHARED_MONITOR_MODE')==='TAPRO_SCHEDULER',intervalMinutes:5,
     lastResult:p.getProperty('AF_SHARED_LAST_RESULT')||null,lastError:p.getProperty('AF_SHARED_LAST_ERROR')||null,realBroker:false},afSharedHealth_(p,Date.now()));
+}
+// Only open plans and explicitly unsynced plans are needed by the monitor.
+// Filter the latest ledger rows before loading their potentially large blobs.
+function afSharedTrackedPlans_(book,owner,properties){
+  var dirty={};Object.keys(properties||{}).filter(function(k){return k.indexOf('AF_SHARED_DIRTY_')===0;}).forEach(function(k){dirty[properties[k]]=true;});
+  return afPaperLatest_(book,owner,function(state,key){return ['PENDING','ACTIVE'].includes(state)||dirty[key]===true;});
+}
+// On a destination change, carry only currently open plans forward. Imported
+// rows are marked to prevent a future notification bridge from replaying them.
+function afSharedMigrateOpen_(book,plans){
+  var props=PropertiesService.getScriptProperties();
+  if(props.getProperty('AF_SHARED_MIGRATED_TARGET')===AF_SHARED_CONFIG.spreadsheetId)return {success:true,imported:0,retryPending:0};
+  var saved=0,waiting=0;
+  AF_SHARED_IMPORTING=true;
+  try{plans.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state);}).forEach(function(p){
+    var r=afSharedObservePaper_(book,p);r.success?saved++:waiting++;
+  });}finally{AF_SHARED_IMPORTING=false;}
+  if(!waiting)props.setProperty('AF_SHARED_MIGRATED_TARGET',AF_SHARED_CONFIG.spreadsheetId);
+  return {success:waiting===0,imported:saved,retryPending:waiting};
 }
 function afInitializeSharedSignals(){
   afRequireUser_(afSoloIdentity_().username);return afResearchLock_(function(){
     AF_SHARED_CACHE=null;afSharedSchema_(true);afSharedPrepareAlerts_();
-    var props=PropertiesService.getScriptProperties(),book=afResearchBookLocked_(),plans=afPaperLatest_(book,afResearchHash_(afSoloIdentity_().username)),saved=0,waiting=0;
+    var props=PropertiesService.getScriptProperties(),book=afResearchBookLocked_(),plans=afSharedTrackedPlans_(book,afResearchHash_(afSoloIdentity_().username),props.getProperties());
     props.setProperty('AF_SHARED_ENABLED','1');props.setProperty('AF_SHARED_ALERTS_READY','1');if(!props.getProperty('AF_SHARED_STARTED_AT'))props.setProperty('AF_SHARED_STARTED_AT',String(Date.now()));
-    AF_SHARED_IMPORTING=true;
-    try{plans.forEach(function(p){var r=afSharedObservePaper_(book,p);r.success?saved++:waiting++;});}finally{AF_SHARED_IMPORTING=false;}
+    plans.forEach(function(p){if(afSharedAlertCancellationRequested_(p)){p.state='CANCELLED';p.reason='USER_CANCELLED_SHARED_ALERTS';afPaperCommit_(book,p,'CANCELLED','PENDING');}});
+    var migration=afSharedMigrateOpen_(book,plans);
     props.setProperty('AF_SHARED_MONITOR_MODE','TAPRO_SCHEDULER');props.setProperty('AF_SHARED_ACTIVE_COUNT',String(plans.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state);}).length));
     props.setProperty('AF_SHARED_NEEDS_SCAN','1');SpreadsheetApp.flush();
-    return Object.assign(afSharedStatus(),{success:waiting===0,imported:saved,retryPending:waiting,message:'เชื่อม TAPRO_2 แล้ว · หนึ่งแผนต่อหนึ่งแถว · ใช้รอบตรวจเดิมประมาณทุก 5 นาที'});
+    return Object.assign(afSharedStatus(),migration,{message:'เชื่อมชีต Allindy แยกแล้ว · หนึ่งแผนต่อหนึ่งแถว · ใช้รอบตรวจเดิมประมาณทุก 5 นาที'});
   });
 }
 function afSharedMonitor(){
   if(!afSharedEnabled_())return {skipped:'NOT_CONNECTED',aiCalls:0};
   var props=PropertiesService.getScriptProperties(),all=props.getProperties(),dirty=Object.keys(all).filter(function(k){return k.indexOf('AF_SHARED_DIRTY_')===0;});
-  if(!dirty.length&&all.AF_SHARED_NEEDS_SCAN!=='1'&&Number(all.AF_SHARED_ACTIVE_COUNT)===0){props.setProperty('AF_SHARED_LAST_CHECKED',String(Date.now()));props.setProperty('AF_SHARED_LAST_RESULT','NO_OPEN_PLANS');return {skipped:'NO_OPEN_PLANS',aiCalls:0};}
+  if(!dirty.length&&all.AF_SHARED_NEEDS_SCAN!=='1'&&Number(all.AF_SHARED_ACTIVE_COUNT)===0&&all.AF_SHARED_MIGRATED_TARGET===AF_SHARED_CONFIG.spreadsheetId){props.setProperty('AF_SHARED_LAST_CHECKED',String(Date.now()));props.setProperty('AF_SHARED_LAST_RESULT','NO_OPEN_PLANS');return {skipped:'NO_OPEN_PLANS',aiCalls:0};}
   if(Date.now()-Number(all.AF_SHARED_MONITOR_LAST_STARTED||0)<45000)return {skipped:'RECENTLY_CHECKED',aiCalls:0};
   var lock=LockService.getScriptLock();if(!lock.tryLock(1))return {skipped:'ANALYSIS_BUSY',aiCalls:0};
   try{
     props.setProperty('AF_SHARED_MONITOR_LAST_STARTED',String(Date.now()));
-    var user=afSoloIdentity_().username,book=afResearchBookLocked_(),plans=afPaperLatest_(book,afResearchHash_(user));
+    var user=afSoloIdentity_().username,book=afResearchBookLocked_(),plans=afSharedTrackedPlans_(book,afResearchHash_(user),all);
+    // Honor a cancellation already entered at the destination before resyncing.
     plans.forEach(function(p){if(afSharedAlertCancellationRequested_(p)){p.state='CANCELLED';p.reason='USER_CANCELLED_SHARED_ALERTS';afPaperCommit_(book,p,'CANCELLED','PENDING');}});
+    var migration=afSharedMigrateOpen_(book,plans);
+    if(!migration.success)return {success:false,code:'AF_SHARED_MIGRATION_PENDING',retryPending:migration.retryPending,aiCalls:0,realBroker:false};
     var open=plans.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state);});
     plans.filter(function(p){return open.indexOf(p)>=0||dirty.some(function(k){return all[k]===p.key;});}).forEach(function(p){afSharedObservePaper_(book,p);});
     var oldest=open.reduce(function(t,p){return Math.min(t,p.lastBarClose);},Date.now()),limit=Math.max(30,Math.min(3000,Math.ceil((Date.now()-oldest)/60000)+3));
@@ -173,12 +196,21 @@ function afSharedMonitor(){
     props.setProperty('AF_SHARED_LAST_CHECKED',String(Date.now()));props.setProperty('AF_SHARED_LAST_RESULT',outcome);
     // Re-read committed versions; replay may have advanced a plan. Update derived
     // deadline warnings after completion, without overwriting a newer revision.
-    var latest=afPaperLatest_(book,afResearchHash_(user));
+    var latest=afSharedTrackedPlans_(book,afResearchHash_(user),props.getProperties());
     latest.filter(function(p){return ['PENDING','ACTIVE'].includes(p.state)||dirty.some(function(k){return all[k]===p.key;});}).forEach(function(p){afSharedObservePaper_(book,p);});
     var remaining=Object.keys(props.getProperties()).filter(function(k){return k.indexOf('AF_SHARED_DIRTY_')===0;});if(!remaining.length){props.deleteProperty('AF_SHARED_LAST_ERROR');props.deleteProperty('AF_SHARED_NEEDS_SCAN');}
     return {success:remaining.length===0,feed:result.feed||null,changed:result.changed||0,retryPending:remaining.length,aiCalls:0,realBroker:false};
   }catch(error){var code=afSharedCode_(error);props.setProperty('AF_SHARED_LAST_ERROR',code);return {success:false,code:code,aiCalls:0,realBroker:false};}
   finally{lock.releaseLock();}
+}
+// Verify the actual destination without creating plans or calling AI.
+function afVerifySeparatedSheet(){
+  afRequireUser_(afSoloIdentity_().username);
+  AF_SHARED_CACHE=null;AF_SHARED_ALERT_CACHE=null;
+  var summary=afSharedSchema_(false),alerts=afSharedAlertSchema_(false);
+  return {success:true,enabled:afSharedEnabled_(),spreadsheetId:AF_SHARED_CONFIG.spreadsheetId,
+    summarySheet:summary.sheet.getName(),summaryRows:Math.max(0,summary.sheet.getLastRow()-1),summaryUrl:afSharedUrl_(),
+    alertsSheet:alerts.sheet.getName(),alertRows:Math.max(0,alerts.sheet.getLastRow()-1),alertsUrl:afSharedAlertsUrl_(),aiCalls:0};
 }
 function afSharedMonitorRequest_(e){
   var text=e&&e.postData&&e.postData.contents||'',input;
