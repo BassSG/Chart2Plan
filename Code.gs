@@ -1,5 +1,5 @@
 var AF_CONFIG = Object.freeze({namespace:'ALLINDY_FIBO_SANDBOX_V1',mode:'TEST',liveTrading:false,sourceDetectorsReady:true});
-function afStatus(){return {system:'ALLINDY_FIBO',revision:'2026-10-30-separate-paper-sheet',mode:'TEST',workflow:'ORIGINAL_CHART2PLAN',singleUser:true,appLoginRequired:false,strategy:'ALLINDY_FIBO_AI',manualAiCallsEnabled:true,liveTrading:false,pineRuntimeParityVerified:false,marketFeedConfigured:true,newsFeedConfigured:true,sharedSignalsEnabled:typeof afSharedEnabled_==='function'&&afSharedEnabled_(),serverUtc:new Date().toISOString()};}
+function afStatus(){return {system:'ALLINDY_FIBO',revision:'2026-10-31-unblock-analysis',mode:'TEST',workflow:'ORIGINAL_CHART2PLAN',singleUser:true,appLoginRequired:false,strategy:'ALLINDY_FIBO_AI',manualAiCallsEnabled:true,liveTrading:false,pineRuntimeParityVerified:false,marketFeedConfigured:true,newsFeedConfigured:true,sharedSignalsEnabled:typeof afSharedEnabled_==='function'&&afSharedEnabled_(),serverUtc:new Date().toISOString()};}
 
 function doGet(e) {
   if(e&&e.parameter&&e.parameter.format==='json') return afJson_(afStatus());

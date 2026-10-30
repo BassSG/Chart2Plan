@@ -167,14 +167,17 @@
   function refreshSharedHealth(){
    if(document.hidden||busy||statusInFlight||typeof premiumRun!=='undefined'&&premiumRun.busy||typeof premiumWork!=='undefined'&&premiumWork.owner!==null)return;
    statusInFlight=true;lastStatusRequest=Date.now();
+   var analysisRequest=typeof premiumRun!=='undefined'?premiumRun.request:null;
    var history=typeof analysisHistory==='undefined'?[]:analysisHistory.slice(-50),keys=history.map(function(x){return x.runFacts?.paperPlanKey||x.runFacts?.paperView?.planKey;}).filter(Boolean),runs=history.map(function(x){return x.runId;}).filter(Boolean);
    google.script.run.withSuccessHandler(function(v){
-    statusInFlight=false;sharedStatus(v.sharedStatus||v);
+    statusInFlight=false;
+    if(typeof premiumRun!=='undefined'&&(premiumRun.busy||premiumRun.request!==analysisRequest))return;
+    sharedStatus(v.sharedStatus||v);
     if(v.success){if(typeof window.afApplyPaperStatus==='function')window.afApplyPaperStatus(v);else if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(v.plans||[],v.aliases);
      if(lastDashboard){lastDashboard=v;renderPaperTable(v);document.getElementById('afResearchDashboardStatus').textContent='อัปเดตสถานะล่าสุด '+new Date(v.asOf).toLocaleTimeString('th-TH',{timeZone:'Asia/Bangkok'})+' · อ่านผลที่บันทึกไว้';}}
    }).withFailureHandler(function(){statusInFlight=false;document.getElementById('afSharedStatus').textContent='ยังอ่านสถานะล่าสุดไม่ได้ · แสดงผลที่โหลดไว้ก่อนหน้า';}).afPaperStatus(user(),keys,runs);
   }
-  refreshSharedHealth();
+  // Initial health arrives with loadTriggers(); avoid an identical cold ledger read.
   // Read-only committed-state polling. No replay or AI; no global write lock.
   setInterval(refreshSharedHealth,60000);
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&Date.now()-lastStatusRequest>=60000)refreshSharedHealth();});

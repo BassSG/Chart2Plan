@@ -17,14 +17,14 @@
     {
       "source": "ResearchLog.gs",
       "target": "ResearchLog.js",
-      "baselineSha256": "f1a0721a666f64381e403c9bc41bf427ec29800ecb0f2e404928703ee1b10eb2",
-      "patchedSha256": "ee67bd422aee48a8a46093723463f8cef035a7e80376009e0f184cb0fb1a9b61"
+      "baselineSha256": "ee67bd422aee48a8a46093723463f8cef035a7e80376009e0f184cb0fb1a9b61",
+      "patchedSha256": "dca0ba2bc2f0b8c5be9bc80d6929988776d7258a139d0f9f082450f27dd3800d"
     },
     {
       "source": "ResearchUi.html",
       "target": "ResearchUi.html",
       "baselineSha256": "df1ffc73bacf1efd8be58fc0291b24980fdac72df4ff85a8eba37c64b8780fa3",
-      "patchedSha256": "df1ffc73bacf1efd8be58fc0291b24980fdac72df4ff85a8eba37c64b8780fa3"
+      "patchedSha256": "e65ca2d361583498259124f385c55d7d1023d11b788de3a469297f806b0d5773"
     },
     {
       "source": "PremiumUi.html",
@@ -42,7 +42,7 @@
       "source": "Code.gs",
       "target": "Code.js",
       "baselineSha256": "a7c3dea42d346fe3d6f71dbf54a869d396425f62f1f97905a3f41b397849f9cb",
-      "patchedSha256": "a7c3dea42d346fe3d6f71dbf54a869d396425f62f1f97905a3f41b397849f9cb"
+      "patchedSha256": "4fd5991851ed15e5fbbcc06b800783d1f02720cbbc04c4e4156d6555696f2e47"
     },
     {
       "source": "Planner.gs",
@@ -78,7 +78,7 @@
       "source": "ClientScript.html",
       "target": "ClientScript.html",
       "baselineSha256": "008094fb4698b922c6efed254ec6cc7cd8d4d22f0ba0f304587b8d602276ecc7",
-      "patchedSha256": "008094fb4698b922c6efed254ec6cc7cd8d4d22f0ba0f304587b8d602276ecc7"
+      "patchedSha256": "2cf53832c0673e9da3b2a3e5f6fdb7c180e2c51d418e54392abe010eab40da8d"
     },
     {
       "source": "Index-template.html",
@@ -95,7 +95,7 @@
     {
       "source": "SharedSignals.gs",
       "target": "SharedSignals.js",
-      "baselineSha256": "69cd2b4da9b1b06431858ed55ff206a61aa664e10e785723a733d96d87806584",
+      "baselineSha256": "6170eb5914eb3b60f2487fdc82b2bf6f2a53e81f7f3c7d3d1caae04ceca259f6",
       "patchedSha256": "6170eb5914eb3b60f2487fdc82b2bf6f2a53e81f7f3c7d3d1caae04ceca259f6"
     },
     {

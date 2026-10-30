@@ -51,7 +51,7 @@ try{
   if($LASTEXITCODE -ne 0){throw 'Clasp push failed'}
  }
  if($Deploy){
-  & clasp deploy --deploymentId $afDeploymentId --description 'Separate Allindy paper-tracking sheet; open-plan migration; original analysis rules'
+  & clasp deploy --deploymentId $afDeploymentId --description 'Unblock analysis during status reads; reduce repeated ledger scans'
   if($LASTEXITCODE -ne 0){throw 'Clasp deploy failed'}
  }
 }finally{Pop-Location}

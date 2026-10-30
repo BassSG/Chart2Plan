@@ -78,10 +78,10 @@ function afResearchBlob_(book,value){
   parts.forEach(function(part,i){rows.push([seq+i,ref,i+1,parts.length,hash,'J:'+part]);});
   s.getRange(s.getLastRow()+1,1,rows.length,6).setValues(rows);return {ref:ref,hash:hash};
 }
-function afResearchReadBlob_(book,ref,expectedHash){
+function afResearchReadBlob_(book,ref,expectedHash,index){
   // Read the small reference column first. Never reload every audit payload to find one blob.
-  var sheet=book.getSheetByName('Snapshots'),last=sheet.getLastRow(),positions=[],chunks=[];
-  if(last>1)sheet.getRange(2,2,last-1,1).getValues().forEach(function(r,i){if(r[0]===ref)positions.push(i+2);});
+  var sheet=index?index.sheet:book.getSheetByName('Snapshots'),last=index?0:sheet.getLastRow(),positions=index?(index.positions[ref]||[]):[],chunks=[];
+  if(!index&&last>1)sheet.getRange(2,2,last-1,1).getValues().forEach(function(r,i){if(r[0]===ref)positions.push(i+2);});
   for(var p=0;p<positions.length;){var start=positions[p],end=start;p++;while(p<positions.length&&positions[p]===end+1){end=positions[p];p++;}
     chunks=chunks.concat(sheet.getRange(start,1,end-start+1,6).getValues());}
   chunks.sort(function(a,b){return a[2]-b[2];});
@@ -104,7 +104,14 @@ function afPaperKey_(p,symbol){
 }
 function afPaperLatest_(book,owner,select){
   var latest={};afResearchRows_(book,'PaperPlans').forEach(function(r){if(r[2]===owner)latest[r[3]]=r;});
-  return Object.keys(latest).filter(function(k){return !select||select(latest[k][4],k);}).map(function(k){var row=latest[k],p=afResearchReadBlob_(book,row[7],row[8]);
+  var keys=Object.keys(latest).filter(function(k){return !select||select(latest[k][4],k);}),index=null;
+  if(keys.length>1){
+    var sheet=book.getSheetByName('Snapshots'),last=sheet.getLastRow(),wanted=Object.create(null),positions=Object.create(null);
+    keys.forEach(function(k){wanted[latest[k][7]]=true;});
+    if(last>1)sheet.getRange(2,2,last-1,1).getValues().forEach(function(r,i){var ref=r[0];if(wanted[ref]){if(!positions[ref])positions[ref]=[];positions[ref].push(i+2);}});
+    index={sheet:sheet,positions:positions};
+  }
+  return keys.map(function(k){var row=latest[k],p=afResearchReadBlob_(book,row[7],row[8],index);
     if(p.key!==k||p.owner!==owner||p.state!==row[4]||p.revision!==row[5])throw Error('AF_RESEARCH_REVISION_MISMATCH');
     p._ref=row[7];return p;
   });
@@ -147,7 +154,7 @@ function afAuditRecord_(response,request){
   afResearchAppend_(s,[s.getLastRow(),now,owner,evidence.runId,evidence.status,blob.ref,blob.hash,key]);
   var result={auditRef:blob.ref,auditHash:blob.hash,planKey:key||null,realBroker:false};
   if(!p)return afResearchAuditDone_(book,owner,key,blob,result);
-  var prior=afPaperLatest_(book,owner).find(function(x){return x.key===key;});
+  var prior=afPaperLatest_(book,owner,function(_,candidateKey){return candidateKey===key;})[0];
   if(prior){result.deduplicated=true;result.state=prior.state;result.view=afPaperView_(prior);if(typeof afSharedObservePaper_==='function')result.sharedSave=afSharedObservePaper_(book,prior);return afResearchAuditDone_(book,owner,key,blob,result,'AUDIT_DEDUPLICATED');}
   var e=p.evidence||{},tf=e.executionTF||p.executionTF,tfMs=afPaperTfMs_(p);
   var q=(snapshot||{}).quote||{},spread=typeof q.spread==='number'?q.spread:q.spread_price;

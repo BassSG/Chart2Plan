@@ -1231,30 +1231,32 @@ async function copyResult (){
       });
     }
 
+    // Reading status is independent from analysis and must never lock its button.
+    var afTriggerLoadRequest=0;
     function loadTriggers() {
       const currentUser = localStorage.getItem('af.currentUser');
       if (!currentUser) return;
-      if(!premiumAcquireWork('alerts','โหลดสถานะแผน'))return;
-      const releaseAlerts=()=>premiumReleaseWork('alerts');
+      const request=++afTriggerLoadRequest;
 
       const tableBody = document.querySelector('#triggersTable tbody');
       tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;"><div class="loading" style="border-top-color: var(--primary-color-light);"></div> กำลังโหลดข้อมูล...</td></tr>`;
 
       try {google.script.run
         .withSuccessHandler(function(response) {
-          releaseAlerts();
-          if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(response.plans||[],response.aliases);
-          renderPaperTriggers(response);
+          if(request!==afTriggerLoadRequest)return;
+          if(typeof window.afResearchSharedStatus==='function'&&response.sharedStatus)window.afResearchSharedStatus(response.sharedStatus);
+          if(typeof window.afApplyPaperStatus==='function')window.afApplyPaperStatus(response);
+          else {if(typeof premiumUpdatePaperViews==='function')premiumUpdatePaperViews(response.plans||[],response.aliases);renderPaperTriggers(response);}
         })
         .withFailureHandler(function(error) {
-          releaseAlerts();
+          if(request!==afTriggerLoadRequest)return;
           console.error("Load Triggers Error:", error);
           document.getElementById('premiumAlertCount').textContent = 'โหลดไม่สำเร็จ';
           tableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px;">เกิดข้อผิดพลาด: ${premiumEscape(error.message)}</td></tr>`;
           Swal.fire('ผิดพลาดรุนแรง', 'เกิดข้อผิดพลาดในการดึงข้อมูล Trigger: ' + error.message, 'error');
         })
         .manageTriggers('getAll', currentUser);
-      }catch(error){releaseAlerts();tableBody.innerHTML='<tr><td colspan="7">ยังโหลดสถานะแผนไม่ได้ กรุณาลองใหม่</td></tr>';}
+      }catch(error){if(request===afTriggerLoadRequest)tableBody.innerHTML='<tr><td colspan="7">ยังโหลดสถานะแผนไม่ได้ กรุณาลองใหม่</td></tr>';}
     }
 
     var afTriggerSnapshot=null,afTriggerClockSignature='';

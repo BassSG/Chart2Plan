@@ -73,6 +73,18 @@ test('latest-plan selector skips closed payloads only after finding the latest r
   assert.equal(none.length,0);assert.equal(e.reads.some(r=>r.sheet==='Snapshots'),false);
   const latest=e.c.afPaperLatest_(e.book,e.c.afResearchHash_('owner'),s=>s==='EXPIRED');assert.equal(latest.length,1);assert.equal(latest[0].state,'EXPIRED');
 });
+test('multiple latest plans use one reference-column read and still validate payloads',()=>{
+  const e=env(),first=response(),second=response();second.runId='run2';second.plan.evidence.zoneId='zone2';e.record(first);e.record(second);
+  e.reads.length=0;const plans=e.c.afPaperLatest_(e.book,e.c.afResearchHash_('owner'));assert.equal(plans.length,2);
+  assert.equal(e.reads.filter(r=>r.sheet==='Snapshots'&&r.col===2).length,1);
+  const snapshots=e.book.getSheetByName('Snapshots').rows,ref=plans[0]._ref,row=snapshots.find(r=>r[1]===ref);row[5]+='x';
+  assert.throws(()=>e.c.afPaperLatest_(e.book,e.c.afResearchHash_('owner')),/HASH/);
+});
+test('saving a different plan avoids loading unrelated plan payloads',()=>{
+  const e=env(),second=response();e.record();second.runId='run2';second.plan.evidence.zoneId='zone2';e.reads.length=0;e.record(second);
+  assert.equal(e.reads.some(r=>r.sheet==='Snapshots'&&r.col===2),false);
+  e.reads.length=0;assert.equal(e.record(second).deduplicated,true);assert.equal(e.reads.filter(r=>r.sheet==='Snapshots'&&r.col===2).length,1);
+});
 test('all rejected candidates, gates, versions and accepted snapshot durable',()=>{
   const e=env(),r=e.record(),a=e.c.afResearchReadBlob_(e.book,r.auditRef,r.auditHash);
   assert.equal(a.candidates.length,2);assert.equal(a.candidates[1].accepted,false);assert.equal(a.versions.planner,'fixture');

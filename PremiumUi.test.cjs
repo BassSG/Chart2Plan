@@ -69,9 +69,9 @@ context.premiumAcquireWork('research','ตรวจเงื่อนไข');co
 
 let alertsDone;context.localStorage={getItem:()=> 'owner-test'};
 context.google={script:{run:{withSuccessHandler(fn){alertsDone=fn;return this;},withFailureHandler(){return this;},manageTriggers(){rpcCalls++;}}}};
-vm.runInContext(client.slice(client.indexOf('function loadTriggers()'),client.indexOf('function confirmDeleteAllTriggers()')),context);
-context.loadTriggers();assert.equal(rpcCalls,1);assert.equal(controls.analyzeBtn.disabled,true);context.loadTriggers();assert.equal(rpcCalls,1);
-alertsDone({success:true,triggers:[]});assert.equal(controls.analyzeBtn.disabled,false);
+vm.runInContext(client.slice(client.indexOf('var afTriggerLoadRequest=0;'),client.indexOf('function confirmDeleteAllTriggers()')),context);
+context.loadTriggers();assert.equal(rpcCalls,1);assert.equal(controls.analyzeBtn.disabled,false);context.loadTriggers();assert.equal(rpcCalls,2);
+alertsDone({success:true,triggers:[],plans:[]});assert.equal(controls.analyzeBtn.disabled,false);
 // AI provenance must distinguish a rule check, a completed model response, and uncertainty.
 assert.equal(context.premiumRunFacts({status:'DIAGNOSTICS_READY',success:true,aiCalled:false,audit:{stage:'PLANNER',candidates:[{eligible:true}]}}).aiState,'not_called');
 assert.equal(context.premiumRunFacts({status:'NO_TRADE',audit:{stage:'PLANNER',candidates:[]}}).aiState,'not_called');
